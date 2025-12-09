@@ -1,0 +1,550 @@
+---
+pid: 2718
+cwd: /home/ubuntu/infinigen
+---
+n$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && find infinigen_examples/configs_indoor -name "*.gin" | head -5
+infinigen_examples/configs_indoor/rrt_cam_indoors.gin
+infinigen_examples/configs_indoor/fast_solve.gin
+infinigen_examples/configs_indoor/multistory.gin
+infinigen_examples/configs_indoor/real_geometry.gin
+infinigen_examples/configs_indoor/export_upload.gin
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && conda activate infinigen && timeout 30 python -m infinigen_examples.generate_indoors --seed 0 --task coarse --output_folder outputs/test --configs infinigen_examples/configs_indoor/fast_solve.gin 2>&1 | head -50
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/ubuntu/infinigen/infinigen_examples/generate_indoors.py", line 22, in <module>
+    from infinigen.assets import lighting
+  File "/home/ubuntu/infinigen/infinigen/assets/lighting/__init__.py", line 7, in <module>
+    from .caustics_lamp import CausticsLampFactory
+  File "/home/ubuntu/infinigen/infinigen/assets/lighting/caustics_lamp.py", line 17, in <module>
+    from infinigen.core.placement.factory import AssetFactory
+  File "/home/ubuntu/infinigen/infinigen/core/placement/__init__.py", line 1, in <module>
+    from . import camera
+  File "/home/ubuntu/infinigen/infinigen/core/placement/camera.py", line 37, in <module>
+    from infinigen.terrain.core import Terrain
+  File "/home/ubuntu/infinigen/infinigen/terrain/__init__.py", line 1, in <module>
+    from .core import Terrain
+  File "/home/ubuntu/infinigen/infinigen/terrain/core.py", line 19, in <module>
+    from infinigen.assets.composition import material_assignments
+  File "/home/ubuntu/infinigen/infinigen/assets/composition/material_assignments.py", line 8, in <module>
+    from infinigen.assets.materials import (
+  File "/home/ubuntu/infinigen/infinigen/assets/materials/__init__.py", line 8, in <module>
+    from infinigen.infinigen_gpl.surfaces import snow
+ModuleNotFoundError: No module named 'infinigen.infinigen_gpl.surfaces'
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && conda activate infinigen && python -c "
+import sys
+sys.path.insert(0, '/home/ubuntu/infinigen')
+try:
+    from infinigen_examples.generate_indoors import main
+    print('✓ 模块可以导入')
+except Exception as e:
+    print(f'✗ 导入错误: {e}')
+    import traceback
+    traceback.print_exc()
+" 2>&1
+✗ 导入错误: No module named 'infinigen.infinigen_gpl.surfaces'
+Traceback (most recent call last):
+  File "<string>", line 5, in <module>
+  File "/home/ubuntu/infinigen/infinigen_examples/generate_indoors.py", line 22, in <module>
+    from infinigen.assets import lighting
+  File "/home/ubuntu/infinigen/infinigen/assets/lighting/__init__.py", line 7, in <module>
+    from .caustics_lamp import CausticsLampFactory
+  File "/home/ubuntu/infinigen/infinigen/assets/lighting/caustics_lamp.py", line 17, in <module>
+    from infinigen.core.placement.factory import AssetFactory
+  File "/home/ubuntu/infinigen/infinigen/core/placement/__init__.py", line 1, in <module>
+    from . import camera
+  File "/home/ubuntu/infinigen/infinigen/core/placement/camera.py", line 37, in <module>
+    from infinigen.terrain.core import Terrain
+  File "/home/ubuntu/infinigen/infinigen/terrain/__init__.py", line 1, in <module>
+    from .core import Terrain
+  File "/home/ubuntu/infinigen/infinigen/terrain/core.py", line 19, in <module>
+    from infinigen.assets.composition import material_assignments
+  File "/home/ubuntu/infinigen/infinigen/assets/composition/material_assignments.py", line 8, in <module>
+    from infinigen.assets.materials import (
+  File "/home/ubuntu/infinigen/infinigen/assets/materials/__init__.py", line 8, in <module>
+    from infinigen.infinigen_gpl.surfaces import snow
+ModuleNotFoundError: No module named 'infinigen.infinigen_gpl.surfaces'
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && conda activate infinigen && python -c "
+import sys
+print('Python 版本:', sys.version)
+print('开始导入...')
+try:
+    import bpy
+    print('✓ bpy 导入成功')
+    from infinigen_examples import generate_indoors
+    print('✓ infinigen_examples.generate_indoors 导入成功')
+    print('模块路径:', generate_indoors.__file__ if hasattr(generate_indoors, '__file__') else 'N/A')
+except Exception as e:
+    print('✗ 错误:', e)
+    import traceback
+    traceback.print_exc()
+" 2>&1
+Python 版本: 3.11.14 (main, Oct 21 2025, 18:31:21) [GCC 11.2.0]
+开始导入...
+✓ bpy 导入成功
+✗ 错误: No module named 'infinigen.infinigen_gpl.surfaces'
+Traceback (most recent call last):
+  File "<string>", line 8, in <module>
+  File "/home/ubuntu/infinigen/infinigen_examples/generate_indoors.py", line 22, in <module>
+    from infinigen.assets import lighting
+  File "/home/ubuntu/infinigen/infinigen/assets/lighting/__init__.py", line 7, in <module>
+    from .caustics_lamp import CausticsLampFactory
+  File "/home/ubuntu/infinigen/infinigen/assets/lighting/caustics_lamp.py", line 17, in <module>
+    from infinigen.core.placement.factory import AssetFactory
+  File "/home/ubuntu/infinigen/infinigen/core/placement/__init__.py", line 1, in <module>
+    from . import camera
+  File "/home/ubuntu/infinigen/infinigen/core/placement/camera.py", line 37, in <module>
+    from infinigen.terrain.core import Terrain
+  File "/home/ubuntu/infinigen/infinigen/terrain/__init__.py", line 1, in <module>
+    from .core import Terrain
+  File "/home/ubuntu/infinigen/infinigen/terrain/core.py", line 19, in <module>
+    from infinigen.assets.composition import material_assignments
+  File "/home/ubuntu/infinigen/infinigen/assets/composition/material_assignments.py", line 8, in <module>
+    from infinigen.assets.materials import (
+  File "/home/ubuntu/infinigen/infinigen/assets/materials/__init__.py", line 8, in <module>
+    from infinigen.infinigen_gpl.surfaces import snow
+ModuleNotFoundError: No module named 'infinigen.infinigen_gpl.surfaces'
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && ls -la infinigen/infinigen_gpl 2>&1 | head -10
+total 8
+drwxrwxr-x  2 ubuntu ubuntu 4096 Aug 14 13:24 .
+drwxrwxr-x 10 ubuntu ubuntu 4096 Dec  6 06:04 ..
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && ls -la infinigen/infinigen_gpl/
+total 8
+drwxrwxr-x 2 ubuntu ubuntu 4096 Nov 17 19:25 .
+drwxrwxr-x 9 ubuntu ubuntu 4096 Nov 17 19:25 ..
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && git submodule status 2>&1
+fatal: not a git repository (or any of the parent directories): .git
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && rm -rf infinigen/infinigen_gpl && git clone https://github.com/princeton-vl/infinigen_gpl.git infinigen/infinigen_gpl
+Cloning into 'infinigen/infinigen_gpl'...
+remote: Enumerating objects: 84, done.
+remote: Counting objects: 100% (84/84), done.
+remote: Compressing objects: 100% (50/50), done.
+remote: Total 84 (delta 29), reused 71 (delta 25), pack-reused 0 (from 0)
+Receiving objects: 100% (84/84), 46.55 KiB | 46.00 KiB/s, done.
+Resolving deltas: 100% (29/29), done.
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && if [ -d .git ]; then echo "已经是 git 仓库"; else echo "不是 git 仓库"; fi
+不是 git 仓库
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && git init
+hint: Using 'master' as the name for the initial branch. This default branch name
+hint: is subject to change. To configure the initial branch name to use in all
+hint: of your new repositories, which will suppress this warning, call:
+hint: 
+hint:   git config --global init.defaultBranch <name>
+hint: 
+hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+hint: 'development'. The just-created branch can be renamed via this command:
+hint: 
+hint:   git branch -m <name>
+Initialized empty Git repository in /home/ubuntu/infinigen/.git/
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && git remote -v 2>&1 | head -5 || echo "没有远程仓库信息"
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && git remote add origin https://github.com/princeton-vl/infinigen.git 2>&1 || echo "远程已存在或添加失败"
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && git submodule update --init --recursive 2>&1 | head -50
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && git submodule status 2>&1
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && ls -la infinigen/infinigen_gpl/ | head -10
+total 64
+drwxrwxr-x 6 ubuntu ubuntu  4096 Dec  6 07:24 .
+drwxrwxr-x 9 ubuntu ubuntu  4096 Dec  6 07:24 ..
+drwxrwxr-x 4 ubuntu ubuntu  4096 Dec  6 07:24 bnodes
+drwxrwxr-x 2 ubuntu ubuntu  4096 Dec  6 07:24 extras
+drwxrwxr-x 8 ubuntu ubuntu  4096 Dec  6 07:24 .git
+-rw-rw-r-- 1 ubuntu ubuntu    12 Dec  6 07:24 .gitignore
+-rw-rw-r-- 1 ubuntu ubuntu 35149 Dec  6 07:24 LICENSE
+drwxrwxr-x 2 ubuntu ubuntu  4096 Dec  6 07:24 surfaces
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && ls -la infinigen/OcMesher/ 2>&1 | head -5
+total 8
+drwxrwxr-x 2 ubuntu ubuntu 4096 Nov 17 19:25 .
+drwxrwxr-x 9 ubuntu ubuntu 4096 Dec  6 07:24 ..
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && if [ ! -d "infinigen/OcMesher/.git" ]; then rm -rf infinigen/OcMesher && git clone https://github.com/princeton-vl/OcMesher.git infinigen/OcMesher; else echo "OcMesher 已存在"; fi
+Cloning into 'infinigen/OcMesher'...
+remote: Enumerating objects: 59, done.
+remote: Counting objects: 100% (22/22), done.
+remote: Compressing objects: 100% (9/9), done.
+remote: Total 59 (delta 14), reused 18 (delta 13), pack-reused 37 (from 1)
+Receiving objects: 100% (59/59), 1.65 MiB | 32.00 KiB/s, done.
+Resolving deltas: 100% (21/21), done.
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && conda activate infinigen && python -c "from infinigen_examples import generate_indoors; print('✓ 模块导入成功')" 2>&1 | head -20
+[07:37:00.511] [init] [WARNING] | addon='antlandscape' not found and online install is disabled. Generation may crash at runtime if certain assets are used.
+[07:37:00.511] [init] [INFO] | Installing Add-on antlandscape.
+^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && conda activate infinigen && python -c "
+import sys
+print('测试导入...')
+try:
+    from infinigen_examples import generate_indoors
+    print('✓ infinigen_examples.generate_indoors 导入成功')
+    print('准备测试运行...')
+except Exception as e:
+    print(f'✗ 导入失败: {e}')
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
+" 2>&1
+测试导入...
+[07:37:50.394] [init] [WARNING] | addon='antlandscape' not found and online install is disabled. Generation may crash at runtime if certain assets are used.
+[07:37:50.394] [init] [INFO] | Installing Add-on antlandscape.
+STATUS Checking repository "extensions.blender.org" for updates...
+STATUS Refreshing extensions list for "extensions.blender.org"...
+PROGRESS ['Downloading...', 'BYTE', 0, 462188]
+PROGRESS ['Downloading...', 'BYTE', 0, 462188]
+PROGRESS ['Downloading...', 'BYTE', 16384, 462188]
+PROGRESS ['Downloading...', 'BYTE', 32768, 462188]
+PROGRESS ['Downloading...', 'BYTE', 49152, 462188]
+PROGRESS ['Downloading...', 'BYTE', 65536, 462188]
+PROGRESS ['Downloading...', 'BYTE', 81920, 462188]
+PROGRESS ['Downloading...', 'BYTE', 98304, 462188]
+PROGRESS ['Downloading...', 'BYTE', 114688, 462188]
+PROGRESS ['Downloading...', 'BYTE', 131072, 462188]
+PROGRESS ['Downloading...', 'BYTE', 147456, 462188]
+PROGRESS ['Downloading...', 'BYTE', 163840, 462188]
+PROGRESS ['Downloading...', 'BYTE', 180224, 462188]
+PROGRESS ['Downloading...', 'BYTE', 196608, 462188]
+PROGRESS ['Downloading...', 'BYTE', 212992, 462188]
+PROGRESS ['Downloading...', 'BYTE', 229376, 462188]
+PROGRESS ['Downloading...', 'BYTE', 245760, 462188]
+PROGRESS ['Downloading...', 'BYTE', 262144, 462188]
+PROGRESS ['Downloading...', 'BYTE', 278528, 462188]
+PROGRESS ['Downloading...', 'BYTE', 294912, 462188]
+PROGRESS ['Downloading...', 'BYTE', 311296, 462188]
+PROGRESS ['Downloading...', 'BYTE', 327680, 462188]
+PROGRESS ['Downloading...', 'BYTE', 344064, 462188]
+PROGRESS ['Downloading...', 'BYTE', 360448, 462188]
+PROGRESS ['Downloading...', 'BYTE', 376832, 462188]
+PROGRESS ['Downloading...', 'BYTE', 393216, 462188]
+PROGRESS ['Downloading...', 'BYTE', 409600, 462188]
+PROGRESS ['Downloading...', 'BYTE', 425984, 462188]
+PROGRESS ['Downloading...', 'BYTE', 442368, 462188]
+PROGRESS ['Downloading...', 'BYTE', 458752, 462188]
+STATUS Extensions list for "extensions.blender.org" updated
+PROGRESS ['Downloading "antlandscape"', 'BYTE', 0, 60899]
+PROGRESS ['Downloading "antlandscape"', 'BYTE', 0, 60899]
+PROGRESS ['Downloading "antlandscape"', 'BYTE', 16384, 60899]
+PROGRESS ['Downloading "antlandscape"', 'BYTE', 32768, 60899]
+PROGRESS ['Downloading "antlandscape"', 'BYTE', 49152, 60899]
+STATUS Installed "antlandscape"
+✗ 导入失败: User has installed ocmesher_version='1.0' which is not for infinigen.__version__='1.19.0', we expected ocmesher_version_expected='2.0', you may need to re-run installation / recompile the codebase
+Traceback (most recent call last):
+  File "<string>", line 5, in <module>
+  File "/home/ubuntu/infinigen/infinigen_examples/generate_indoors.py", line 22, in <module>
+    from infinigen.assets import lighting
+  File "/home/ubuntu/infinigen/infinigen/assets/lighting/__init__.py", line 7, in <module>
+    from .caustics_lamp import CausticsLampFactory
+  File "/home/ubuntu/infinigen/infinigen/assets/lighting/caustics_lamp.py", line 17, in <module>
+    from infinigen.core.placement.factory import AssetFactory
+  File "/home/ubuntu/infinigen/infinigen/core/placement/__init__.py", line 1, in <module>
+    from . import camera
+  File "/home/ubuntu/infinigen/infinigen/core/placement/camera.py", line 37, in <module>
+    from infinigen.terrain.core import Terrain
+  File "/home/ubuntu/infinigen/infinigen/terrain/__init__.py", line 1, in <module>
+    from .core import Terrain
+  File "/home/ubuntu/infinigen/infinigen/terrain/core.py", line 67, in <module>
+    raise ValueError(
+ValueError: User has installed ocmesher_version='1.0' which is not for infinigen.__version__='1.19.0', we expected ocmesher_version_expected='2.0', you may need to re-run installation / recompile the codebase
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen/infinigen/OcMesher && git tag | grep -E "v?2\." | head -10
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen/infinigen/OcMesher$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen/infinigen/OcMesher$ cd /home/ubuntu/infinigen/infinigen/OcMesher && git branch -a | head -10
+* main
+  remotes/origin/HEAD -> origin/main
+  remotes/origin/house
+  remotes/origin/main
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen/infinigen/OcMesher$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen/infinigen/OcMesher$ cd /home/ubuntu/infinigen/infinigen/OcMesher && git checkout -b v2.0 origin/main 2>&1 || git checkout main 2>&1 || git checkout master 2>&1
+branch 'v2.0' set up to track 'origin/main'.
+Switched to a new branch 'v2.0'
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen/infinigen/OcMesher$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen/infinigen/OcMesher$ cd /home/ubuntu/infinigen && grep -r "ocmesher_version" infinigen/terrain/core.py | head -3
+from infinigen.OcMesher.ocmesher import __version__ as ocmesher_version
+ocmesher_version_expected = "2.0"
+if ocmesher_version != ocmesher_version_expected:
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && find infinigen/OcMesher -name "__init__.py" -o -name "ocmesher.py" | head -5
+infinigen/OcMesher/ocmesher/utils/__init__.py
+infinigen/OcMesher/ocmesher/__init__.py
+infinigen/OcMesher/__init__.py
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && conda activate infinigen && python -c "from infinigen.OcMesher.ocmesher import __version__; print('OcMesher 版本:', __version__)" 2>&1
+OcMesher 版本: 1.0
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen/infinigen/OcMesher && find . -name "*.py" -exec grep -l "__version__" {} \; | head -5
+./ocmesher/__init__.py
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen/infinigen/OcMesher$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen/infinigen/OcMesher$ cd /home/ubuntu/infinigen && grep -r "__version__" infinigen/OcMesher/ocmesher/__init__.py
+__version__ = "1.0"
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && conda activate infinigen && python -c "from infinigen_examples import generate_indoors; print('✓ 模块导入成功!')" 2>&1 | tail -10
+bash: !': event not found
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && conda activate infinigen && python -c "from infinigen_examples import generate_indoors; print('模块导入成功')" 2>&1 | tail -15
+^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && conda activate infinigen && python -m infinigen_examples.generate_indoors --seed 0 --task coarse --output_folder outputs/hello_room/coarse -g fast_solve.gin singleroom.gin -p compose_indoors.terrain_enabled=False restrict_solving.restrict_parent_rooms='["DiningRoom"]' 2>&1 | head -100
+[07:46:39.283] [init] [INFO] | Addon antlandscape already in blender local addons, attempt to enable it.
+[07:46:39.430] [init] [INFO] | Addon extra_mesh_objects already in blender local addons, attempt to enable it.
+[07:46:39.622] [smb_client] [WARNING] | SMB_AUTH envvar is not set, smb_client upload will not work. Ignore this message if not using upload
+/home/ubuntu/infinigen/infinigen/tools/export.py:27: UserWarning: coacd could not be imported. Some features may be unavailable.
+  warnings.warn("coacd could not be imported. Some features may be unavailable.")
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/ubuntu/infinigen/infinigen_examples/generate_indoors.py", line 38, in <module>
+    from infinigen.core.constraints.example_solver.solve import Solver
+  File "/home/ubuntu/infinigen/infinigen/core/constraints/example_solver/solve.py", line 24, in <module>
+    from infinigen.core.constraints.example_solver.room.predefined import (
+  File "/home/ubuntu/infinigen/infinigen/core/constraints/example_solver/room/predefined.py", line 13, in <module>
+    import yaml
+ModuleNotFoundError: No module named 'yaml'
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && ls -la outputs/hello_room/coarse/ 2>&1 | head -10
+ls: cannot access 'outputs/hello_room/coarse/': No such file or directory
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && timeout 60 python -m infinigen_examples.generate_indoors --seed 0 --task coarse --output_folder outputs/test_simple --configs infinigen_examples/configs_indoor/fast_solve.gin 2>&1
+[07:49:18.004] [init] [INFO] | Addon antlandscape already in blender local addons, attempt to enable it.
+[07:49:18.146] [init] [INFO] | Addon extra_mesh_objects already in blender local addons, attempt to enable it.
+[07:49:18.340] [smb_client] [WARNING] | SMB_AUTH envvar is not set, smb_client upload will not work. Ignore this message if not using upload
+/home/ubuntu/infinigen/infinigen/tools/export.py:27: UserWarning: coacd could not be imported. Some features may be unavailable.
+  warnings.warn("coacd could not be imported. Some features may be unavailable.")
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/ubuntu/infinigen/infinigen_examples/generate_indoors.py", line 38, in <module>
+    from infinigen.core.constraints.example_solver.solve import Solver
+  File "/home/ubuntu/infinigen/infinigen/core/constraints/example_solver/solve.py", line 24, in <module>
+    from infinigen.core.constraints.example_solver.room.predefined import (
+  File "/home/ubuntu/infinigen/infinigen/core/constraints/example_solver/room/predefined.py", line 13, in <module>
+    import yaml
+ModuleNotFoundError: No module named 'yaml'
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && conda activate infinigen && mkdir -p outputs/hello_room
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && conda activate infinigen && python -m infinigen_examples.generate_indoors --seed 0 --task coarse --output_folder outputs/hello_room/coarse -g fast_solve.gin singleroom.gin -p compose_indoors.terrain_enabled=False restrict_solving.restrict_parent_rooms='["DiningRoom"]' 2>&1 | tee generate_log.txt
+[07:52:19.805] [init] [INFO] | Addon antlandscape already in blender local addons, attempt to enable it.
+[07:52:19.954] [init] [INFO] | Addon extra_mesh_objects already in blender local addons, attempt to enable it.
+[07:52:20.146] [smb_client] [WARNING] | SMB_AUTH envvar is not set, smb_client upload will not work. Ignore this message if not using upload
+/home/ubuntu/infinigen/infinigen/tools/export.py:27: UserWarning: coacd could not be imported. Some features may be unavailable.
+  warnings.warn("coacd could not be imported. Some features may be unavailable.")
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/ubuntu/infinigen/infinigen_examples/generate_indoors.py", line 38, in <module>
+    from infinigen.core.constraints.example_solver.solve import Solver
+  File "/home/ubuntu/infinigen/infinigen/core/constraints/example_solver/solve.py", line 24, in <module>
+    from infinigen.core.constraints.example_solver.room.predefined import (
+  File "/home/ubuntu/infinigen/infinigen/core/constraints/example_solver/room/predefined.py", line 13, in <module>
+    import yaml
+ModuleNotFoundError: No module named 'yaml'
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && tail -50 generate_log.txt 2>/dev/null | tail -30
+[07:52:19.805] [init] [INFO] | Addon antlandscape already in blender local addons, attempt to enable it.
+[07:52:19.954] [init] [INFO] | Addon extra_mesh_objects already in blender local addons, attempt to enable it.
+[07:52:20.146] [smb_client] [WARNING] | SMB_AUTH envvar is not set, smb_client upload will not work. Ignore this message if not using upload
+/home/ubuntu/infinigen/infinigen/tools/export.py:27: UserWarning: coacd could not be imported. Some features may be unavailable.
+  warnings.warn("coacd could not be imported. Some features may be unavailable.")
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/ubuntu/infinigen/infinigen_examples/generate_indoors.py", line 38, in <module>
+    from infinigen.core.constraints.example_solver.solve import Solver
+  File "/home/ubuntu/infinigen/infinigen/core/constraints/example_solver/solve.py", line 24, in <module>
+    from infinigen.core.constraints.example_solver.room.predefined import (
+  File "/home/ubuntu/infinigen/infinigen/core/constraints/example_solver/room/predefined.py", line 13, in <module>
+    import yaml
+ModuleNotFoundError: No module named 'yaml'
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && ls -lah outputs/hello_room/coarse/ 2>&1 | head -20
+ls: cannot access 'outputs/hello_room/coarse/': No such file or directory
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && ps aux | grep "python.*generate_indoors" | grep -v grep | head -3
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && conda activate infinigen && python -m infinigen_examples.generate_indoors --seed 0 --task coarse --output_folder outputs/hello_room/coarse -g fast_solve.gin singleroom.gin -p compose_indoors.terrain_enabled=False restrict_solving.restrict_parent_rooms='["DiningRoom"]' 2>&1
+[07:52:40.546] [init] [INFO] | Addon antlandscape already in blender local addons, attempt to enable it.
+[07:52:40.699] [init] [INFO] | Addon extra_mesh_objects already in blender local addons, attempt to enable it.
+[07:52:40.889] [smb_client] [WARNING] | SMB_AUTH envvar is not set, smb_client upload will not work. Ignore this message if not using upload
+/home/ubuntu/infinigen/infinigen/tools/export.py:27: UserWarning: coacd could not be imported. Some features may be unavailable.
+  warnings.warn("coacd could not be imported. Some features may be unavailable.")
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/ubuntu/infinigen/infinigen_examples/generate_indoors.py", line 38, in <module>
+    from infinigen.core.constraints.example_solver.solve import Solver
+  File "/home/ubuntu/infinigen/infinigen/core/constraints/example_solver/solve.py", line 24, in <module>
+    from infinigen.core.constraints.example_solver.room.predefined import (
+  File "/home/ubuntu/infinigen/infinigen/core/constraints/example_solver/room/predefined.py", line 13, in <module>
+    import yaml
+ModuleNotFoundError: No module named 'yaml'
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && conda activate infinigen && pip install PyYAML
+Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
+Collecting PyYAML
+  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/71/60/917329f640924b18ff085ab889a11c763e0b573da888e8404ff486657602/pyyaml-6.0.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (806 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 806.6/806.6 kB 14.4 MB/s  0:00:00
+Installing collected packages: PyYAML
+Successfully installed PyYAML-6.0.3
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && conda activate infinigen && python -m infinigen_examples.generate_indoors --seed 0 --task coarse --output_folder outputs/hello_room/coarse -g fast_solve.gin singleroom.gin -p compose_indoors.terrain_enabled=False restrict_solving.restrict_parent_rooms='["DiningRoom"]' 2>&1 | tee generate_log2.txt
+[07:53:03.517] [init] [INFO] | Addon antlandscape already in blender local addons, attempt to enable it.
+[07:53:03.667] [init] [INFO] | Addon extra_mesh_objects already in blender local addons, attempt to enable it.
+[07:53:03.859] [smb_client] [WARNING] | SMB_AUTH envvar is not set, smb_client upload will not work. Ignore this message if not using upload
+/home/ubuntu/infinigen/infinigen/tools/export.py:27: UserWarning: coacd could not be imported. Some features may be unavailable.
+  warnings.warn("coacd could not be imported. Some features may be unavailable.")
+[07:53:04.163] [init] [WARNING] | addon='real_snow' not found and online install is disabled. Generation may crash at runtime if certain assets are used.
+[07:53:04.163] [init] [INFO] | Installing Add-on real_snow.
+^Ccd /home/ubuntu/infinigen && tail -100 generate_log2.txt 2>/dev/null | tail -50
+
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && tail -100 generate_log2.txt 2>/dev/null | tail -50
+[07:53:03.517] [init] [INFO] | Addon antlandscape already in blender local addons, attempt to enable it.
+[07:53:03.667] [init] [INFO] | Addon extra_mesh_objects already in blender local addons, attempt to enable it.
+[07:53:03.859] [smb_client] [WARNING] | SMB_AUTH envvar is not set, smb_client upload will not work. Ignore this message if not using upload
+/home/ubuntu/infinigen/infinigen/tools/export.py:27: UserWarning: coacd could not be imported. Some features may be unavailable.
+  warnings.warn("coacd could not be imported. Some features may be unavailable.")
+[07:53:04.163] [init] [WARNING] | addon='real_snow' not found and online install is disabled. Generation may crash at runtime if certain assets are used.
+[07:53:04.163] [init] [INFO] | Installing Add-on real_snow.
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && ls -lah outputs/hello_room/coarse/ 2>&1
+total 8.0K
+drwxrwxr-x 2 ubuntu ubuntu 4.0K Dec  6 07:53 .
+drwxrwxr-x 3 ubuntu ubuntu 4.0K Dec  6 07:53 ..
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && wc -l generate_log2.txt 2>/dev/null || echo "0"
+7 generate_log2.txt
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && cat generate_log2.txt
+[07:53:03.517] [init] [INFO] | Addon antlandscape already in blender local addons, attempt to enable it.
+[07:53:03.667] [init] [INFO] | Addon extra_mesh_objects already in blender local addons, attempt to enable it.
+[07:53:03.859] [smb_client] [WARNING] | SMB_AUTH envvar is not set, smb_client upload will not work. Ignore this message if not using upload
+/home/ubuntu/infinigen/infinigen/tools/export.py:27: UserWarning: coacd could not be imported. Some features may be unavailable.
+  warnings.warn("coacd could not be imported. Some features may be unavailable.")
+[07:53:04.163] [init] [WARNING] | addon='real_snow' not found and online install is disabled. Generation may crash at runtime if certain assets are used.
+[07:53:04.163] [init] [INFO] | Installing Add-on real_snow.
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && conda activate infinigen && python -m infinigen_examples.generate_indoors --help 2>&1 | head -30
+[07:53:35.414] [init] [INFO] | Addon antlandscape already in blender local addons, attempt to enable it.
+[07:53:35.556] [init] [INFO] | Addon extra_mesh_objects already in blender local addons, attempt to enable it.
+[07:53:35.748] [smb_client] [WARNING] | SMB_AUTH envvar is not set, smb_client upload will not work. Ignore this message if not using upload
+/home/ubuntu/infinigen/infinigen/tools/export.py:27: UserWarning: coacd could not be imported. Some features may be unavailable.
+  warnings.warn("coacd could not be imported. Some features may be unavailable.")
+[07:53:35.848] [init] [INFO] | Addon real_snow already in blender local addons, attempt to enable it.
+usage: generate_indoors.py [-h] [--output_folder OUTPUT_FOLDER]
+                           [--input_folder INPUT_FOLDER] [-s SEED]
+                           [-t {coarse,populate,fine_terrain,ground_truth,render,mesh_save,export} [{coarse,populate,fine_terrain,ground_truth,render,mesh_save,export} ...]]
+                           [-g CONFIGS [CONFIGS ...]]
+                           [-p OVERRIDES [OVERRIDES ...]]
+                           [--task_uniqname TASK_UNIQNAME] [-d [DEBUG ...]]
+
+options:
+  -h, --help            show this help message and exit
+  --output_folder OUTPUT_FOLDER
+  --input_folder INPUT_FOLDER
+  -s SEED, --seed SEED  The seed used to generate the scene
+  -t {coarse,populate,fine_terrain,ground_truth,render,mesh_save,export} [{coarse,populate,fine_terrain,ground_truth,render,mesh_save,export} ...], --task {coarse,populate,fine_terrain,ground_truth,render,mesh_save,export} [{coarse,populate,fine_terrain,ground_truth,render,mesh_save,export} ...]
+  -g CONFIGS [CONFIGS ...], --configs CONFIGS [CONFIGS ...]
+                        Set of config files for gin (separated by spaces) e.g.
+                        --gin_config file1 file2 (exclude .gin from path)
+  -p OVERRIDES [OVERRIDES ...], --overrides OVERRIDES [OVERRIDES ...]
+                        Parameter settings that override config defaults e.g.
+                        --gin_param module_1.a=2 module_2.b=3
+  --task_uniqname TASK_UNIQNAME
+  -d [DEBUG ...], --debug [DEBUG ...]
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ sleep 10 && cd /home/ubuntu/infinigen && tail -30 generate_full.log 2>/dev/null | tail -15
+[07:54:01.919] [compatibility] [WARNING] | Subsurface Color no longer in use for ShaderNodeBsdfPrincipled
+[07:54:01.936] [dof] [WARNING] | Init was invalid for name='891110_LargePlantContainerFactory' rels=[(StableAgainst({Subpart.Bottom, -Subpart.Top, -Subpart.Front, -Subpart.Back}, {Subpart.SupportSurface, Subpart.Visible, -Subpart.Wall, -Subpart.Ceiling}), 'dining-room_0/0'), (StableAgainst({Subpart.Back, -Subpart.Top, -Subpart.Front}, {Subpart.Wall, Subpart.Visible, -Subpart.Ceiling, -Subpart.SupportSurface}), 'dining-room_0/0')]
+[07:54:01.947] [annealing] [INFO] | it=12/100 dt=0.349 n=28 loss=2.481e+01 viol=1.0 temp=9.69e-01 diff=0.00 viol_diff=0.0 prob=1.00 accept=None Addition(LargePlantContainerFactory, 2 relations)
+[07:54:02.031] [annealing] [INFO] | it=13/100 dt=0.084 n=28 loss=2.624e+01 viol=1.0 temp=8.82e-01 diff=1.43 viol_diff=0.0 prob=0.20 accept=True ReinitPoseMove(['49919_LargePlantContainerFactory'])
+[07:54:03.082] [annealing] [INFO] | it=14/100 dt=1.051 n=28 loss=2.624e+01 viol=1.0 temp=8.02e-01 diff=1.50 viol_diff=0.0 prob=0.15 accept=False Addition(LargeShelfFactory, 2 relations)
+[07:54:03.275] [compatibility] [WARNING] | Subsurface Color no longer in use for ShaderNodeBsdfPrincipled
+[07:54:03.431] [compatibility] [WARNING] | Subsurface Color no longer in use for ShaderNodeBsdfPrincipled
+[07:54:03.583] [compatibility] [WARNING] | Subsurface Color no longer in use for ShaderNodeBsdfPrincipled
+[07:54:03.941] [annealing] [INFO] | it=15/100 dt=0.859 n=28 loss=2.624e+01 viol=1.0 temp=7.30e-01 diff=0.00 viol_diff=0.0 prob=1.00 accept=None Addition(LargePlantContainerFactory, 2 relations)
+[07:54:04.038] [compatibility] [WARNING] | Subsurface Color no longer in use for ShaderNodeBsdfPrincipled
+[07:54:04.051] [dof] [WARNING] | Init was invalid for name='358311_LargePlantContainerFactory' rels=[(StableAgainst({Subpart.Bottom, -Subpart.Top, -Subpart.Front, -Subpart.Back}, {Subpart.SupportSurface, Subpart.Visible, -Subpart.Wall, -Subpart.Ceiling}), 'dining-room_0/0'), (StableAgainst({Subpart.Back, -Subpart.Top, -Subpart.Front}, {Subpart.Wall, Subpart.Visible, -Subpart.Ceiling, -Subpart.SupportSurface}), 'dining-room_0/0')]
+[07:54:04.217] [compatibility] [WARNING] | Subsurface Color no longer in use for ShaderNodeBsdfPrincipled
+[07:54:04.230] [dof] [WARNING] | Init was invalid for name='186700_LargePlantContainerFactory' rels=[(StableAgainst({Subpart.Bottom, -Subpart.Top, -Subpart.Front, -Subpart.Back}, {Subpart.SupportSurface, Subpart.Visible, -Subpart.Wall, -Subpart.Ceiling}), 'dining-room_0/0'), (StableAgainst({Subpart.Back, -Subpart.Top, -Subpart.Front}, {Subpart.Wall, Subpart.Visible, -Subpart.Ceiling, -Subpart.SupportSurface}), 'dining-room_0/0')]
+[07:54:04.274] [dof] [WARNING] | Init was invalid for name='644254_LargePlantContainerFactory' rels=[(StableAgainst({Subpart.Bottom, -Subpart.Top, -Subpart.Front, -Subpart.Back}, {Subpart.SupportSurface, Subpart.Visible, -Subpart.Wall, -Subpart.Ceiling}), 'dining-room_0/0'), (StableAgainst({Subpart.Back, -Subpart.Top, -Subpart.Front}, {Subpart.Wall, Subpart.Visible, -Subpart.Ceiling, -Subpart.SupportSurface}), 'dining-room_0/0')]
+[07:54:04.451] [annealing] [INFO] | it=16/100 dt=0.510 n=28 loss=2.624e+01 viol=1.0 temp=6.65e-01 diff=0.00 viol_diff=0.0 prob=1.00 accept=None Addition(LargePlantContainerFactory, 2 relations)
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && ps aux | grep "generate_indoors" | grep -v grep
+ubuntu     48445  402  0.4 16866816 599492 pts/1 Rl   07:53   1:18 python -m infinigen_examples.generate_indoors --seed 0 --task coarse --output_folder outputs/hello_room/coarse -g fast_solve.gin singleroom.gin -p compose_indoors.terrain_enabled=False restrict_solving.restrict_parent_rooms=["DiningRoom"]
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && sleep 30 && tail -20 generate_full.log 2>/dev/null | tail -10
+^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && ls -lah outputs/hello_room/coarse/ 2>&1 | head -10
+total 8.0K
+drwxrwxr-x 2 ubuntu ubuntu 4.0K Dec  6 07:53 .
+drwxrwxr-x 3 ubuntu ubuntu 4.0K Dec  6 07:53 ..
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ps aux | grep "48445" | grep -v grep || echo "进程已完成"
+ubuntu     48445  429  0.5 16885472 621124 pts/1 Rl   07:53   2:28 python -m infinigen_examples.generate_indoors --seed 0 --task coarse --output_folder outputs/hello_room/coarse -g fast_solve.gin singleroom.gin -p compose_indoors.terrain_enabled=False restrict_solving.restrict_parent_rooms=["DiningRoom"]
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && tail -30 generate_full.log | grep -E "INFO|ERROR|完成|finish|complete|saved|scene.blend" | tail -10
+[07:54:24.783] [annealing] [INFO] | it=45/100 dt=0.897 n=33 loss=2.493e+01 viol=1.0 temp=4.33e-02 diff=0.00 viol_diff=0.0 prob=1.00 accept=None Addition(LargePlantContainerFactory, 2 relations)
+[07:54:25.611] [annealing] [INFO] | it=46/100 dt=0.828 n=33 loss=2.493e+01 viol=1.0 temp=3.94e-02 diff=0.00 viol_diff=0.0 prob=1.00 accept=None Addition(LargePlantContainerFactory, 2 relations)
+[07:54:28.162] [annealing] [INFO] | it=47/100 dt=2.550 n=33 loss=2.493e+01 viol=1.0 temp=3.58e-02 diff=0.00 viol_diff=0.0 prob=1.00 accept=None Addition(LargeShelfFactory, 2 relations)
+[07:54:28.450] [annealing] [INFO] | it=48/100 dt=0.289 n=33 loss=2.493e+01 viol=1.0 temp=3.26e-02 diff=0.00 viol_diff=0.0 prob=1.00 accept=None Addition(LargePlantContainerFactory, 2 relations)
+[07:54:29.218] [annealing] [INFO] | it=49/100 dt=0.767 n=33 loss=2.493e+01 viol=1.0 temp=2.97e-02 diff=0.00 viol_diff=0.0 prob=1.00 accept=None Addition(KitchenCabinetFactory, 2 relations)
+[07:54:29.589] [annealing] [INFO] | it=50/100 dt=0.371 n=33 loss=2.493e+01 viol=1.0 temp=2.70e-02 diff=-0.41 viol_diff=1.0 prob=1.00 accept=False Addition(SingleCabinetFactory, 2 relations)
+[07:54:30.514] [annealing] [INFO] | it=51/100 dt=0.925 n=33 loss=2.493e+01 viol=1.0 temp=2.46e-02 diff=0.00 viol_diff=0.0 prob=1.00 accept=None Addition(LargePlantContainerFactory, 2 relations)
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && wc -l generate_full.log && tail -5 generate_full.log
+306 generate_full.log
+[07:54:32.420] [annealing] [INFO] | it=55/100 dt=0.089 n=33 loss=2.486e+01 viol=1.0 temp=1.69e-02 diff=-0.07 viol_diff=0.0 prob=60.73 accept=True TranslateMove(['505933_LargeShelfFactory'], 2.87e-02)
+[07:54:33.006] [annealing] [INFO] | it=56/100 dt=0.586 n=33 loss=2.486e+01 viol=1.0 temp=1.54e-02 diff=0.00 viol_diff=0.0 prob=1.00 accept=None Resample(names=['523077_SimpleBookcaseFactory'], align_corner=None)
+[07:54:33.873] [dof] [WARNING] | Init was invalid for name='347923_LargeShelfFactory' rels=[(StableAgainst({Subpart.Bottom, -Subpart.Top, -Subpart.Front, -Subpart.Back}, {Subpart.SupportSurface, Subpart.Visible, -Subpart.Wall, -Subpart.Ceiling}), 'dining-room_0/0'), (StableAgainst({Subpart.Back, -Subpart.Top, -Subpart.Front}, {Subpart.Wall, Subpart.Visible, -Subpart.Ceiling, -Subpart.SupportSurface}), 'dining-room_0/0')]
+[07:54:34.380] [dof] [WARNING] | Init was invalid for name='896257_LargeShelfFactory' rels=[(StableAgainst({Subpart.Bottom, -Subpart.Top, -Subpart.Front, -Subpart.Back}, {Subpart.SupportSurface, Subpart.Visible, -Subpart.Wall, -Subpart.Ceiling}), 'dining-room_0/0'), (StableAgainst({Subpart.Back, -Subpart.Top, -Subpart.Front}, {Subpart.Wall, Subpart.Visible, -Subpart.Ceiling, -Subpart.SupportSurface}), 'dining-room_0/0')]
+[07:54:34.654] [dof] [WARNING] | Init was invalid for name='160717_LargeShelfFactory' rels=[(StableAgainst({Subpart.Bottom, -Subpart.Top, -Subpart.Front, -Subpart.Back}, {Subpart.SupportSurface, Subpart.Visible, -Subpart.Wall, -Subpart.Ceiling}), 'dining-room_0/0'), (StableAgainst({Subpart.Back, -Subpart.Top, -Subpart.Front}, {Subpart.Wall, Subpart.Visible, -Subpart.Ceiling, -Subpart.SupportSurface}), 'dining-room_0/0')]
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu/infinigen && wc -l generate_full.log && tail -5 generate_full.log
+420 generate_full.log
+[07:55:18.072] [annealing] [INFO] | it=20/100 dt=0.128 n=34 loss=3.227e+01 viol=2.0 temp=4.56e-01 diff=-7.63 viol_diff=1.0 prob=1.00 accept=False Deletion(['487724_TableDiningFactory'])
+[07:55:20.217] [annealing] [INFO] | it=21/100 dt=1.827 n=34 loss=3.227e+01 viol=2.0 temp=4.15e-01 diff=0.00 viol_diff=0.0 prob=1.00 accept=None Addition(TableDiningFactory, 1 relations)
+[07:55:22.047] [annealing] [INFO] | it=22/100 dt=1.830 n=34 loss=3.227e+01 viol=2.0 temp=3.78e-01 diff=0.00 viol_diff=0.0 prob=1.00 accept=None Addition(TableDiningFactory, 1 relations)
+[07:55:23.931] [annealing] [INFO] | it=23/100 dt=1.884 n=34 loss=3.227e+01 viol=2.0 temp=3.44e-01 diff=0.00 viol_diff=0.0 prob=1.00 accept=None Addition(TableDiningFactory, 1 relations)
+[07:55:25.721] [annealing] [INFO] | it=24/100 dt=1.789 n=34 loss=3.227e+01 viol=2.0 temp=3.13e-01 diff=0.00 viol_diff=0.0 prob=1.00 accept=None Addition(TableDiningFactory, 1 relations)
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen$ cd /home/ubuntu && find . -name "*.md" -o -name "*rules*" -o -name "*agent*" 2>/dev/null | grep -v ".git" | head -20
+./miniconda3/envs/infinigen/lib/python3.11/site-packages/pip/_vendor/idna/LICENSE.md
+./miniconda3/envs/infinigen/lib/python3.11/site-packages/pip-25.3.dist-info/licenses/src/pip/_vendor/idna/LICENSE.md
+./miniconda3/envs/infinigen/lib/python3.11/site-packages/bpy/lib/materialx/libraries/README.md
+./miniconda3/envs/infinigen/lib/python3.11/site-packages/bpy/4.2/scripts/addons_core/node_wrangler/README.md
+./miniconda3/envs/infinigen/lib/python3.11/site-packages/scipy/integrate/_rules
+./miniconda3/envs/infinigen/lib/python3.11/site-packages/scipy/fft/_pocketfft/LICENSE.md
+./miniconda3/envs/infinigen/lib/python3.11/site-packages/openexr-3.4.4.dist-info/licenses/LICENSE.md
+./miniconda3/envs/infinigen/lib/python3.11/site-packages/idna-3.11.dist-info/licenses/LICENSE.md
+./miniconda3/envs/infinigen/lib/python3.11/site-packages/numpy/f2py/common_rules.py
+./miniconda3/envs/infinigen/lib/python3.11/site-packages/numpy/f2py/rules.py
+./miniconda3/envs/infinigen/lib/python3.11/site-packages/numpy/f2py/use_rules.py
+./miniconda3/envs/infinigen/lib/python3.11/site-packages/numpy/f2py/__pycache__/cb_rules.cpython-311.pyc
+./miniconda3/envs/infinigen/lib/python3.11/site-packages/numpy/f2py/__pycache__/rules.cpython-311.pyc
+./miniconda3/envs/infinigen/lib/python3.11/site-packages/numpy/f2py/__pycache__/use_rules.cpython-311.pyc
+./miniconda3/envs/infinigen/lib/python3.11/site-packages/numpy/f2py/__pycache__/f90mod_rules.cpython-311.pyc
+./miniconda3/envs/infinigen/lib/python3.11/site-packages/numpy/f2py/__pycache__/common_rules.cpython-311.pyc
+./miniconda3/envs/infinigen/lib/python3.11/site-packages/numpy/f2py/f90mod_rules.py
+./miniconda3/envs/infinigen/lib/python3.11/site-packages/numpy/f2py/cb_rules.py
+./miniconda3/envs/infinigen/lib/python3.11/site-packages/numpy/random/LICENSE.md
+./miniconda3/envs/infinigen/lib/python3.11/site-packages/trimesh/resources/schema/README.md
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~$ ^C
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~$ cd /home/ubuntu && mkdir -p infinigen_agent/{src,config,tests} && cd infinigen_agent && tree -L 2 || find . -type d
+Command 'tree' not found, but can be installed with:
+sudo snap install tree  # version 2.1.3+pkg-5852, or
+sudo apt  install tree  # version 2.1.1-2ubuntu3.24.04.2
+See 'snap info tree' for additional versions.
+.
+./src
+./config
+./tests
+(infinigen) ubuntu@ml-ubuntu24-04-desktop-v3-0-120gb-25m:~/infinigen_agent$
