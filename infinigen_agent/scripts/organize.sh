@@ -30,3 +30,4 @@ for f in quick_test*.py quick_render_test.py generate_scene_direct.py \
 done
 
 echo "文件整理完成！"
+

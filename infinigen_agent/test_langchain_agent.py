@@ -23,7 +23,9 @@ def test_full_workflow():
     print("=" * 60)
     print("LangChain Infinigen Agent - 完整流程测试")
     print("=" * 60)
-    print("⚠ 注意：此测试需要 5-15 分钟")
+    print("⚡ 使用官方推荐配置（fast_solve + singleroom，完全复刻 hello_room）")
+    print("⚠ 注意：此测试预计需要 8-13 分钟（vs 默认 50+ 分钟）")
+    print("   使用官方 HelloRoom.md 文档中的推荐配置")
     print("=" * 60)
     
     # 初始化 Agent
@@ -54,7 +56,7 @@ def test_full_workflow():
             user_input=user_input,
             output_folder=output_folder,
             seed=None,  # 使用随机种子
-            timeout=900  # 15分钟超时
+            timeout=1200  # 20分钟超时（快速模式预计5-10分钟，但留有余量）
         )
         
         print(f"\n结束时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")

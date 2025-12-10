@@ -3,9 +3,16 @@
 使用 GLM4.6 验证输入，qwen2.5-7b-infinigen 生成颜色，Infinigen 生成场景
 """
 import os
+import sys
 from typing import Optional, Dict, Any
 from pathlib import Path
 import logging
+
+# 添加项目根目录到路径（确保可以从任何位置运行）
+current_file = Path(__file__).resolve()
+project_root = current_file.parent.parent  # infinigen_agent 目录
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -15,6 +22,9 @@ from src.scene_generator import SceneGenerator
 from src.scene_color_applier import SceneColorApplier
 from src.scene_renderer import SceneRenderer
 from src.color_parser import ColorParser
+from src.procedural_furniture_generator import ProceduralFurnitureGenerator
+from src.room_type_detector import detect_room_type
+import numpy as np
 
 # 导入 vLLM API 配置
 try:
@@ -98,6 +108,7 @@ class LangChainInfinigenAgent:
         self.color_parser = ColorParser()
         self.scene_applier = None
         self.scene_renderer = None
+        self.procedural_generator = None  # 延迟初始化（需要在 Blender 环境中）
         
         logger.info("LangChain Infinigen Agent 初始化完成")
     
@@ -253,18 +264,76 @@ class LangChainInfinigenAgent:
         
         # 2.2 生成场景（并行）
         print("  2.2 生成场景（使用 Infinigen 原生命令）...")
+        print("      ⚡ 使用超快配置（ultra_fast_solve.gin + singleroom.gin）")
+        print("      预计时间: 5-10 分钟（vs fast_solve 8-13 分钟，默认 50+ 分钟）")
         try:
-            # 注意：不使用 'disable/no_objects'，因为需要家具来应用颜色
+            # 检测房间类型
+            room_type = detect_room_type(user_input)
+            
+            # 默认使用超快配置（ultra_fast_solve.gin 比 fast_solve.gin 更快）
+            # ultra_fast_solve.gin: FloorPlanSolver 参数更小（10 vs 25），求解步数相同
+            gin_configs = ['ultra_fast_solve.gin', 'singleroom.gin']
+            gin_overrides = ['compose_indoors.terrain_enabled=False']
+            
+            # 如果检测到房间类型，添加到覆盖中
+            # 注意：官方文档格式是 restrict_solving.restrict_parent_rooms=\[\"RoomType\"\]
+            # 在 shell 中，\[ 会被解释为 [，\" 会被解释为 "，所以最终传递给 gin 的是 ["RoomType"]
+            # 在 Python 字符串中，我们需要使用 \\[ 和 \\" 来表示 shell 中的 \[ 和 \"
+            # 但是 shell 解释 \" 时可能会丢失引号，所以我们需要使用不同的格式
+            # 实际上，gin 解析器期望的格式是 ["RoomType"]，而不是 [RoomType]
+            # 让我们直接使用官方文档中的格式，让 shell 正确解释
+            if room_type:
+                # 格式：restrict_solving.restrict_parent_rooms=\[\"RoomType\"\]
+                # 在 Python 字符串中：\\[ 表示 shell 中的 \[，\\" 表示 shell 中的 \"
+                gin_overrides.append(f'restrict_solving.restrict_parent_rooms=\\[\\"{room_type}\\"\\]')
+                print(f"      ✓ 检测到房间类型: {room_type}")
+            
             scene_file = self.scene_generator.generate_scene(
                 output_folder=output_folder,
                 seed=seed,
                 task="coarse",
-                gin_configs=['base'],  # 只使用 base 配置，不禁用家具
+                gin_configs=gin_configs,
+                gin_overrides=gin_overrides,
                 timeout=timeout
             )
-            print(f"  ✓ 场景生成成功: {scene_file}")
+            
+            # 确保 scene_file 是 Path 对象
+            from pathlib import Path
+            scene_file = Path(scene_file)
+            
+            print(f"  ✓ 场景生成命令执行完成")
+            print(f"  📁 返回的场景文件路径: {scene_file}")
+            
+            # 如果返回的是目录，尝试查找场景文件
+            if scene_file.is_dir():
+                print(f"  ⚠ 返回的是目录，正在查找场景文件...")
+                possible_scene = scene_file / "scene.blend"
+                if possible_scene.exists():
+                    scene_file = possible_scene
+                    print(f"  ✓ 找到场景文件: {scene_file}")
+                else:
+                    # 递归查找
+                    blend_files = list(scene_file.rglob("*.blend"))
+                    if blend_files:
+                        scene_file = blend_files[0]
+                        print(f"  ✓ 找到场景文件: {scene_file}")
+                    else:
+                        raise FileNotFoundError(f"在目录中未找到场景文件: {scene_file}")
+            
+            # 确认场景文件存在且有效
+            if not scene_file.exists():
+                raise FileNotFoundError(f"场景文件不存在: {scene_file}")
+            
+            file_size = scene_file.stat().st_size
+            if file_size < 1024:
+                raise ValueError(f"场景文件大小异常（可能未完全生成）: {file_size} 字节")
+            
+            print(f"  ✓ 场景文件验证通过: {scene_file} (大小: {file_size / (1024*1024):.2f} MB)")
+            print(f"  → 准备继续执行后续步骤（应用颜色和渲染）...")
         except Exception as e:
             print(f"  ✗ 场景生成失败: {e}")
+            import traceback
+            traceback.print_exc()
             return {
                 "success": False,
                 "error": "场景生成失败",
@@ -272,7 +341,9 @@ class LangChainInfinigenAgent:
             }
         
         # 步骤3: 应用颜色到场景
-        print("\n步骤3: 应用颜色到场景...")
+        print(f"\n{'='*60}")
+        print("步骤3: 应用颜色到场景")
+        print(f"{'='*60}")
         try:
             # 解析颜色方案
             import json
@@ -301,43 +372,88 @@ class LangChainInfinigenAgent:
             if not colors:
                 raise ValueError("无法解析颜色方案，请检查模型输出格式")
             
+            print(f"  ✓ 解析到 {len(colors)} 个颜色配置")
+            
             # 加载场景并应用颜色
+            print(f"  正在加载场景文件: {scene_file}")
+            print("  ⚠ 如果场景文件很大，这可能需要几分钟...")
             self.scene_applier = SceneColorApplier(str(scene_file))
             
-            # 应用颜色到场景中的家具
+            # 初始化程序化生成器（用于生成缺失的家具）
+            print("  正在初始化程序化生成器...")
+            self.procedural_generator = ProceduralFurnitureGenerator(
+                factory_seed=np.random.randint(1, 1e9),
+                coarse=False
+            )
+            print("  ✓ 程序化生成器初始化完成")
+            
+            # 分类家具：支持程序化生成 vs 不支持
+            procedural_supported = []
+            procedural_unsupported = []
+            
             for color in colors:
-                objects = self.scene_applier.find_objects_by_name([color.furniture_type])
-                if objects:
-                    for obj in objects:
-                        self.scene_applier.apply_color_to_object(obj, color)
-                    print(f"  ✓ {color.furniture_type}: 已应用颜色 {color.color_name}")
+                furniture_type = color.furniture_type.lower()
+                if self.procedural_generator.is_furniture_type_supported(furniture_type):
+                    procedural_supported.append(color)
                 else:
-                    print(f"  ⚠ {color.furniture_type}: 场景中未找到该家具")
+                    procedural_unsupported.append(color)
+            
+            # 步骤3.1: 使用程序化生成器生成家具并应用颜色
+            if procedural_supported:
+                print(f"\n  3.1 使用程序化生成器生成 {len(procedural_supported)} 个家具类型:")
+                for color in procedural_supported:
+                    furniture_type = color.furniture_type.lower()
+                    
+                    # 生成家具（默认位置在原点）
+                    obj = self.procedural_generator.generate_furniture(
+                        furniture_type=furniture_type,
+                        location=(0, 0, 0),
+                        color=color.rgb if color.rgb else None
+                    )
+                    
+                    if obj:
+                        if color.rgb:
+                            print(f"    ✓ {furniture_type}: 已生成（生成时已应用颜色 {color.rgb}）")
+                        else:
+                            self.scene_applier.apply_color_to_object(obj, color)
+                            print(f"    ✓ {furniture_type}: 已生成并应用颜色")
+                    else:
+                        print(f"    ✗ {furniture_type}: 生成失败")
+            
+            # 步骤3.2: 在场景中查找已有对象并应用颜色
+            if procedural_unsupported:
+                print(f"\n  3.2 在场景中查找 {len(procedural_unsupported)} 个已有对象并应用颜色:")
+                for color in procedural_unsupported:
+                    objects = self.scene_applier.find_objects_by_name([color.furniture_type])
+                    if objects:
+                        for obj in objects:
+                            self.scene_applier.apply_color_to_object(obj, color)
+                        print(f"    ✓ {color.furniture_type}: 找到 {len(objects)} 个对象并应用颜色 {color.color_name}")
+                    else:
+                        print(f"    ⚠ {color.furniture_type}: 场景中未找到该家具（不支持程序化生成）")
             
             # 保存场景（替换原文件，不生成新文件）
             self.scene_applier.save_scene(str(scene_file))
-            print(f"  ✓ 颜色已应用到场景并保存: {scene_file}")
+            print(f"\n  ✓ 颜色已应用到场景并保存: {scene_file}")
             
         except Exception as e:
             print(f"  ✗ 应用颜色失败: {e}")
             import traceback
             traceback.print_exc()
-            return {
-                "success": False,
-                "error": "颜色应用失败",
-                "message": str(e),
-                "scene_file": str(scene_file)  # 即使颜色应用失败，也返回场景文件
-            }
+            print(f"  ⚠ 颜色应用失败，但将继续渲染场景（使用原始颜色）")
+            # 不返回错误，继续执行渲染步骤
         
-        # 步骤4: 渲染图片
+        # 步骤4: 渲染图片（无论颜色应用是否成功，都会渲染）
         print("\n步骤4: 渲染场景图片...")
         try:
             self.scene_renderer = SceneRenderer(str(scene_file))
             output_image = Path(scene_file).parent / "rendered_image.png"
             
+            # 只渲染单张图片（默认只保存最终图像）
             rendered_image = self.scene_renderer.render_image(
                 output_path=str(output_image),
-                resolution=(1920, 1080)
+                resolution=(1920, 1080),
+                save_all_passes=False  # 只保存最终图像，更快，文件更少
             )
             
             print(f"  ✓ 图片渲染成功: {rendered_image}")
@@ -366,6 +482,121 @@ class LangChainInfinigenAgent:
             "color_scheme": color_scheme_json,
             "colors_applied": len(colors) if colors else 0
         }
+    
+    def process_existing_scene(
+        self,
+        scene_file: str,
+        user_input: Optional[str] = None,
+        color_scheme_json: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        处理已存在的场景文件（跳过场景生成步骤）
+        
+        Args:
+            scene_file: 已生成的场景文件路径（.blend 文件）
+            user_input: 用户输入（可选，用于生成颜色方案）
+            color_scheme_json: 颜色方案 JSON（可选，如果提供则直接使用）
+            
+        Returns:
+            包含场景文件、渲染图片等信息的字典
+        """
+        print("=" * 60)
+        print("LangChain Infinigen Agent - 处理已有场景")
+        print("=" * 60)
+        print(f"场景文件: {scene_file}")
+        
+        scene_path = Path(scene_file)
+        if not scene_path.exists():
+            return {
+                "success": False,
+                "error": "场景文件不存在",
+                "message": f"文件不存在: {scene_file}"
+            }
+        
+        # 步骤1: 生成颜色方案（如果需要）
+        if color_scheme_json is None and user_input:
+            print("\n步骤1: 生成颜色方案...")
+            try:
+                color_scheme_json = self.generate_furniture_colors(user_input)
+                print(f"  ✓ 颜色方案生成成功")
+            except Exception as e:
+                print(f"  ✗ 颜色方案生成失败: {e}")
+                color_scheme_json = None
+        
+        # 步骤2: 应用颜色到场景（如果提供了颜色方案）
+        if color_scheme_json:
+            print("\n步骤2: 应用颜色到场景...")
+            try:
+                import json
+                colors = []
+                
+                try:
+                    color_data = json.loads(color_scheme_json)
+                    colors = self.color_parser.parse_colors_from_dict(color_data)
+                except json.JSONDecodeError:
+                    import re
+                    json_match = re.search(r'\{.*\}', color_scheme_json, re.DOTALL)
+                    if json_match:
+                        try:
+                            color_data = json.loads(json_match.group())
+                            colors = self.color_parser.parse_colors_from_dict(color_data)
+                        except:
+                            pass
+                
+                if not colors:
+                    colors = self.color_parser.parse_colors(color_scheme_json)
+                
+                if colors:
+                    print(f"  ✓ 解析到 {len(colors)} 个颜色配置")
+                    print(f"  正在加载场景文件: {scene_file}")
+                    self.scene_applier = SceneColorApplier(str(scene_file))
+                    
+                    for color in colors:
+                        objects = self.scene_applier.find_objects_by_name([color.furniture_type])
+                        if objects:
+                            for obj in objects:
+                                self.scene_applier.apply_color_to_object(obj, color)
+                            print(f"    ✓ {color.furniture_type}: 找到 {len(objects)} 个对象并应用颜色")
+                    
+                    self.scene_applier.save_scene(str(scene_file))
+                    print(f"  ✓ 颜色已应用到场景并保存")
+                else:
+                    print(f"  ⚠ 无法解析颜色方案，跳过颜色应用")
+            except Exception as e:
+                print(f"  ✗ 应用颜色失败: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # 步骤3: 渲染图片
+        print("\n步骤3: 渲染场景图片...")
+        try:
+            self.scene_renderer = SceneRenderer(str(scene_file))
+            output_image = scene_path.parent / "rendered_image.png"
+            
+            rendered_image = self.scene_renderer.render_image(
+                output_path=str(output_image),
+                resolution=(1920, 1080),
+                save_all_passes=False
+            )
+            
+            print(f"  ✓ 图片渲染成功: {rendered_image}")
+            
+            return {
+                "success": True,
+                "scene_file": str(scene_file),
+                "rendered_image": str(rendered_image),
+                "color_scheme": color_scheme_json if color_scheme_json else None
+            }
+        except Exception as e:
+            print(f"  ✗ 渲染失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                "success": False,
+                "error": "渲染失败",
+                "message": str(e),
+                "scene_file": str(scene_file)
+            }
     
     def interactive_mode(self):
         """交互式模式"""
@@ -416,18 +647,119 @@ class LangChainInfinigenAgent:
 
 if __name__ == "__main__":
     import sys
+    import argparse
+    from pathlib import Path
     
-    agent = LangChainInfinigenAgent()
+    parser = argparse.ArgumentParser(
+        description="LangChain Infinigen Agent - 根据自然语言描述生成、修改和渲染 3D 场景",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+使用示例:
+  # 交互式模式
+  python langchain_agent.py
+  
+  # 命令行模式
+  python langchain_agent.py "生成一个北欧风格的卧室"
+  
+  # 指定输出文件夹和种子
+  python langchain_agent.py "生成一个现代风格的客厅" --output-folder outputs/my_scene --seed 42
+        """
+    )
     
-    if len(sys.argv) > 1:
+    parser.add_argument(
+        "user_input",
+        nargs="?",
+        help="用户输入的场景描述（如果未提供，进入交互式模式）"
+    )
+    parser.add_argument(
+        "--output-folder",
+        type=str,
+        default=None,
+        help="输出文件夹路径（默认: outputs/langchain_<timestamp>）"
+    )
+    parser.add_argument(
+        "--seed",
+        type=str,
+        default=None,
+        help="随机种子（默认: 随机生成）"
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=600,
+        help="场景生成超时时间（秒，默认: 600）"
+    )
+    
+    args = parser.parse_args()
+    
+    # 初始化 Agent
+    print("=" * 60)
+    print("LangChain Infinigen Agent")
+    print("=" * 60)
+    print("初始化中...")
+    
+    try:
+        agent = LangChainInfinigenAgent()
+        print("✓ Agent 初始化成功\n")
+    except Exception as e:
+        print(f"✗ Agent 初始化失败: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+    
+    if args.user_input:
         # 命令行模式
-        user_input = " ".join(sys.argv[1:])
-        result = agent.process_request(
-            user_input=user_input,
-            output_folder="/home/ubuntu/infinigen/outputs/langchain_test",
-            timeout=600
-        )
-        print(f"\n结果: {result}")
+        user_input = args.user_input
+        
+        # 确定输出文件夹
+        if args.output_folder:
+            output_folder = args.output_folder
+        else:
+            import time
+            timestamp = int(time.time())
+            output_folder = f"/home/ubuntu/infinigen/outputs/langchain_{timestamp}"
+        
+        print(f"用户输入: {user_input}")
+        print(f"输出文件夹: {output_folder}")
+        if args.seed:
+            print(f"种子: {args.seed}")
+        print("=" * 60 + "\n")
+        
+        try:
+            result = agent.process_request(
+                user_input=user_input,
+                output_folder=output_folder,
+                seed=args.seed,
+                timeout=args.timeout
+            )
+            
+            print("\n" + "=" * 60)
+            if result.get("success"):
+                print("✓ 成功！")
+                print("=" * 60)
+                print(f"场景文件: {result['scene_file']}")
+                if 'rendered_image' in result:
+                    print(f"渲染图片: {result['rendered_image']}")
+                print(f"应用颜色数: {result.get('colors_applied', 0)}")
+            else:
+                print("✗ 失败")
+                print("=" * 60)
+                print(f"错误: {result.get('error')}")
+                print(f"消息: {result.get('message')}")
+                if result.get('suggestion'):
+                    print(f"建议: {result.get('suggestion')}")
+            print("=" * 60)
+            
+            sys.exit(0 if result.get("success") else 1)
+            
+        except KeyboardInterrupt:
+            print("\n\n⚠ 用户中断")
+            sys.exit(130)
+        except Exception as e:
+            print(f"\n✗ 发生错误: {e}")
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
     else:
         # 交互式模式
         agent.interactive_mode()

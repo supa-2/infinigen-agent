@@ -24,7 +24,14 @@ class SceneColorApplier:
     
     def load_scene(self, scene_path: str):
         """加载 Blender 场景"""
+        import os
+        file_size = os.path.getsize(scene_path) / (1024 * 1024)  # MB
+        print(f"  场景文件大小: {file_size:.2f} MB")
+        if file_size > 100:
+            print(f"  ⚠ 场景文件较大，加载可能需要几分钟，请耐心等待...")
+        
         try:
+            print(f"  正在打开场景文件...")
             bpy.ops.wm.open_mainfile(filepath=scene_path)
             print(f"✓ 成功加载场景: {scene_path}")
         except Exception as e:

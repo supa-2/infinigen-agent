@@ -104,7 +104,8 @@ class SceneRenderer:
         output_path: str,
         camera: Optional[bpy.types.Object] = None,
         resolution: Optional[tuple] = None,
-        passes_to_save: Optional[List[str]] = None
+        passes_to_save: Optional[List[str]] = None,
+        save_all_passes: bool = False  # 默认只保存最终图像（更快，文件更少）
     ) -> str:
         """
         渲染单张图片
@@ -114,6 +115,9 @@ class SceneRenderer:
             camera: 相机对象（如果为None，使用场景默认相机）
             resolution: 分辨率 (width, height)，如果为None使用场景设置
             passes_to_save: 要保存的通道列表，如 ["Image", "Depth"]
+            save_all_passes: 如果为True，保存所有渲染通道（像官方命令一样）
+                           默认 False，只保存最终图像（更快，文件更少）
+                           如果为True，直接输出 PNG，不需要 EXR 转换
             
         Returns:
             输出文件路径
@@ -162,8 +166,29 @@ class SceneRenderer:
         
         # 设置要保存的通道
         # Infinigen的render_image期望passes_to_save是元组列表: [(viewlayer_pass, socket_name), ...]
-        if passes_to_save is None:
+        if save_all_passes:
+            # 保存所有通道（像官方命令一样）
+            passes_to_save = [
+                ("diffuse_direct", "DiffDir"),
+                ("diffuse_color", "DiffCol"),
+                ("diffuse_indirect", "DiffInd"),
+                ("glossy_direct", "GlossDir"),
+                ("glossy_color", "GlossCol"),
+                ("glossy_indirect", "GlossInd"),
+                ("transmission_direct", "TransDir"),
+                ("transmission_color", "TransCol"),
+                ("transmission_indirect", "TransInd"),
+                ("volume_direct", "VolumeDir"),
+                ("emit", "Emit"),
+                ("environment", "Env"),
+                ("ambient_occlusion", "AO"),
+                ("Image", "Image"),  # 最终合成图像
+            ]
+            print(f"✓ 将保存所有渲染通道（共 {len(passes_to_save)} 个）")
+        elif passes_to_save is None:
+            # 默认只保存最终图像（更快，文件更少）
             passes_to_save = [("Image", "Image")]
+            print(f"✓ 只保存最终图像（Image 通道）")
         elif isinstance(passes_to_save, list) and len(passes_to_save) > 0:
             # 如果是字符串列表，转换为元组列表
             if isinstance(passes_to_save[0], str):
@@ -188,38 +213,330 @@ class SceneRenderer:
                 passes_to_save=passes_to_save
             )
             
-            # 查找渲染的图片文件并复制到输出路径
-            # Infinigen会在frames文件夹中创建文件，格式如: Image_0_0_0001_0_0_0.png
-            # 或者重新组织后在 camera_0/ 子目录中
+            # 查找渲染的图片文件并复制/转换为输出路径
+            # Infinigen默认生成EXR格式，需要查找EXR文件并转换为PNG
             import shutil
             
-            # 方法1: 直接在frames文件夹中查找
-            rendered_files = list(frames_folder.glob("Image_*.png"))
-            
-            # 方法2: 在camera子目录中查找（reorganize后）
-            if not rendered_files:
-                camera_dirs = list(frames_folder.glob("camera_*"))
-                for cam_dir in camera_dirs:
-                    if cam_dir.is_dir():
-                        rendered_files.extend(list(cam_dir.glob("Image_*.png")))
+            # 如果保存了所有通道，frames_folder 中会有多个子目录
+            # Infinigen 会同时输出 PNG 和 EXR，我们优先使用 PNG（不需要转换）
+            if save_all_passes:
+                # 所有通道已经保存在 frames_folder 的子目录中
+                # Infinigen 默认会输出 PNG（因为 saving_ground_truth=False）
+                # 只需要找到 Image 通道作为主要输出
+                image_dir = frames_folder / "Image" / "camera_0"
+                if image_dir.exists():
+                    # 优先查找 PNG（官方命令会直接输出 PNG，不需要转换）
+                    rendered_files = list(image_dir.glob("Image_*.png"))
+                    if not rendered_files:
+                        # 如果没找到 PNG，再找 EXR（可能需要转换）
+                        rendered_files = list(image_dir.glob("Image_*.exr"))
+                else:
+                    # 尝试其他可能的路径
+                    image_dirs = list(frames_folder.glob("Image*"))
+                    for img_dir in image_dirs:
+                        if img_dir.is_dir():
+                            # 优先 PNG
+                            rendered_files = list(img_dir.glob("**/Image_*.png"))
+                            if not rendered_files:
+                                rendered_files = list(img_dir.glob("**/Image_*.exr"))
+                            if rendered_files:
+                                break
+                    if not rendered_files:
+                        rendered_files = []
+            else:
+                # 方法1: 直接在frames文件夹中查找（先找PNG，再找EXR）
+                rendered_files = list(frames_folder.glob("Image_*.png"))
+                
+                # 方法2: 在camera子目录中查找（reorganize后）
+                if not rendered_files:
+                    camera_dirs = list(frames_folder.glob("camera_*"))
+                    for cam_dir in camera_dirs:
+                        if cam_dir.is_dir():
+                            rendered_files.extend(list(cam_dir.glob("Image_*.png")))
+                
+                # 方法3: 如果没找到PNG，查找EXR文件（Infinigen默认格式）
+                if not rendered_files:
+                    rendered_files = list(frames_folder.glob("Image_*.exr"))
+                    if not rendered_files:
+                        camera_dirs = list(frames_folder.glob("camera_*"))
+                        for cam_dir in camera_dirs:
+                            if cam_dir.is_dir():
+                                rendered_files.extend(list(cam_dir.glob("Image_*.exr")))
             
             if rendered_files:
-                # 使用第一个找到的图片
-                shutil.copy2(rendered_files[0], output_path)
-                print(f"✓ 图片已渲染并复制到: {output_path}")
+                source_file = rendered_files[0]
                 
-                # 清理临时frames目录（可选）
-                try:
-                    shutil.rmtree(frames_folder)
-                except Exception:
-                    pass  # 忽略清理错误
+                # 默认 save_all_passes=True，Infinigen 会直接输出 PNG
+                # 只有在找不到 PNG 时才需要转换 EXR（这种情况很少见）
+                if source_file.suffix.lower() == '.exr':
+                    print(f"⚠ 注意：找到了 EXR 文件，但通常应该有 PNG 文件（save_all_passes=True）")
+                    print(f"   将转换 EXR 为 PNG...")
+                    try:
+                        import numpy as np
+                        
+                        # 尝试使用 OpenEXR 库（更可靠）
+                        try:
+                            import OpenEXR
+                            import Imath
+                            use_openexr = True
+                        except ImportError:
+                            use_openexr = False
+                            try:
+                                import imageio
+                                import imageio.v2 as imageio_v2
+                            except ImportError:
+                                raise ImportError("需要安装 OpenEXR 或 imageio: pip install OpenEXR")
+                        
+                        # 读取 EXR 文件
+                        print(f"📖 读取 EXR 文件: {source_file}")
+                        
+                        if use_openexr:
+                            # 使用 OpenEXR 库读取
+                            exr_file = OpenEXR.InputFile(str(source_file))
+                            header = exr_file.header()
+                            dw = header['dataWindow']
+                            width = dw.max.x - dw.min.x + 1
+                            height = dw.max.y - dw.min.y + 1
+                            
+                            # 读取 RGB 通道
+                            channels = ['R', 'G', 'B']
+                            channel_data = {}
+                            for channel in channels:
+                                if channel in exr_file.header()['channels']:
+                                    channel_data[channel] = exr_file.channel(channel, Imath.PixelType(Imath.PixelType.FLOAT))
+                                else:
+                                    available_channels = list(exr_file.header()['channels'].keys())
+                                    if available_channels:
+                                        channel_data[channel] = exr_file.channel(available_channels[0], Imath.PixelType(Imath.PixelType.FLOAT))
+                            
+                            if len(channel_data) >= 3:
+                                r = np.frombuffer(channel_data['R'], dtype=np.float32).reshape((height, width))
+                                g = np.frombuffer(channel_data['G'], dtype=np.float32).reshape((height, width))
+                                b = np.frombuffer(channel_data['B'], dtype=np.float32).reshape((height, width))
+                                exr_image = np.stack([r, g, b], axis=2)
+                            elif len(channel_data) == 1:
+                                channel_name = list(channel_data.keys())[0]
+                                single = np.frombuffer(channel_data[channel_name], dtype=np.float32).reshape((height, width))
+                                exr_image = np.stack([single, single, single], axis=2)
+                            else:
+                                raise ValueError(f"无法读取 EXR 通道")
+                            exr_file.close()
+                        else:
+                            # 使用 imageio 读取
+                            exr_image = imageio_v2.imread(str(source_file))
+                        
+                        # EXR 通常是浮点数，需要转换为 0-255 范围的 uint8
+                        # 应用 tone mapping 和 gamma 校正以改善光照
+                        if exr_image.dtype != np.uint8:
+                            max_val = exr_image.max()
+                            min_val = exr_image.min()
+                            
+                            # 处理负值（可能是浮点误差）
+                            if min_val < 0:
+                                exr_image = np.maximum(exr_image, 0)
+                            
+                            # Tone mapping（处理 HDR）
+                            if max_val > 1.0:
+                                print(f"   使用 tone mapping (值范围: {min_val:.2f} - {max_val:.2f})")
+                                # 改进的 Reinhard tone mapping，保留更多细节
+                                exr_image = exr_image / (1 + exr_image * 0.8)
+                            else:
+                                print(f"   值在 0-1 范围内")
+                            
+                            # 确保值在 0-1 范围内
+                            exr_image = np.clip(exr_image, 0, 1)
+                            
+                            # 应用 gamma 校正（线性空间 → sRGB）
+                            # EXR 是线性空间，但 PNG 需要 sRGB 空间
+                            print(f"   应用 gamma 校正 (2.2)")
+                            exr_image = np.power(exr_image, 1.0 / 2.2)
+                            
+                            # 转换为 uint8
+                            exr_image = (exr_image * 255).astype(np.uint8)
+                        
+                        # 如果是多通道，只取前3个通道（RGB）
+                        if len(exr_image.shape) == 3 and exr_image.shape[2] > 3:
+                            exr_image = exr_image[:, :, :3]
+                        
+                        # 如果是灰度图，转换为 RGB
+                        if len(exr_image.shape) == 2:
+                            exr_image = np.stack([exr_image, exr_image, exr_image], axis=2)
+                        
+                        # 保存为 PNG
+                        try:
+                            import imageio
+                            import imageio.v2 as imageio_v2
+                            imageio_v2.imwrite(str(output_path), exr_image)
+                        except ImportError:
+                            # 如果没有 imageio，使用 PIL
+                            from PIL import Image
+                            Image.fromarray(exr_image).save(str(output_path))
+                        print(f"✓ EXR 已转换为 PNG: {output_path}")
+                    except ImportError as e:
+                        print(f"⚠ 无法转换 EXR 到 PNG: 缺少必要的库")
+                        print(f"  请安装: pip install OpenEXR imageio")
+                        print(f"  错误: {e}")
+                        print(f"  原始 EXR 文件: {source_file}")
+                        # 如果转换失败，至少复制 EXR 文件
+                        shutil.copy2(source_file, output_path.with_suffix('.exr'))
+                        return str(output_path.with_suffix('.exr'))
+                    except Exception as e:
+                        print(f"⚠ EXR 转换失败: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        print(f"  原始 EXR 文件: {source_file}")
+                        # 如果转换失败，至少复制 EXR 文件
+                        exr_output = output_path.with_suffix('.exr')
+                        shutil.copy2(source_file, exr_output)
+                        print(f"  已复制 EXR 文件到: {exr_output}")
+                        return str(exr_output)
+                else:
+                    # 如果是 PNG，直接复制（save_all_passes=True 时直接输出 PNG，不需要转换）
+                    if save_all_passes:
+                        print(f"✓ PNG 图片已复制到: {output_path}（无需转换）")
+                    else:
+                        print(f"✓ PNG 图片已复制到: {output_path}")
+                    shutil.copy2(source_file, output_path)
+                
+                # 如果保存了所有通道，保留 frames 目录；否则清理临时目录
+                if not save_all_passes:
+                    try:
+                        shutil.rmtree(frames_folder)
+                    except Exception:
+                        pass  # 忽略清理错误
+                else:
+                    # 将所有通道复制到输出目录的父目录
+                    output_dir = Path(output_path).parent
+                    frames_output_dir = output_dir / "frames"
+                    if frames_output_dir.exists():
+                        import shutil
+                        shutil.rmtree(frames_output_dir)
+                    shutil.copytree(frames_folder, frames_output_dir)
+                    print(f"✓ 所有渲染通道已保存到: {frames_output_dir}")
             else:
-                print(f"⚠ 未找到渲染的图片文件")
+                print(f"⚠ 未在临时 frames 目录找到渲染文件")
                 print(f"  检查目录: {frames_folder}")
-                print(f"  渲染可能已成功，但文件位置不同")
+                # 尝试从原始场景的 frames 目录查找（场景生成时已经渲染过）
+                scene_frames_dir = Path(self.scene_path).parent / "frames" / "Image" / "camera_0"
+                if scene_frames_dir.exists():
+                    exr_files = list(scene_frames_dir.glob("Image_*.exr"))
+                    if exr_files:
+                        print(f"  找到原始 EXR 文件: {exr_files[0]}")
+                        # 尝试转换 EXR 到 PNG
+                        try:
+                            import numpy as np
+                            
+                            # 尝试使用 OpenEXR
+                            try:
+                                import OpenEXR
+                                import Imath
+                                use_openexr = True
+                            except ImportError:
+                                use_openexr = False
+                                try:
+                                    import imageio
+                                    import imageio.v2 as imageio_v2
+                                except ImportError:
+                                    raise ImportError("需要安装 OpenEXR 或 imageio")
+                            
+                            print(f"📖 读取原始 EXR 文件: {exr_files[0]}")
+                            
+                            if use_openexr:
+                                exr_file = OpenEXR.InputFile(str(exr_files[0]))
+                                header = exr_file.header()
+                                dw = header['dataWindow']
+                                width = dw.max.x - dw.min.x + 1
+                                height = dw.max.y - dw.min.y + 1
+                                
+                                channels = ['R', 'G', 'B']
+                                channel_data = {}
+                                for channel in channels:
+                                    if channel in exr_file.header()['channels']:
+                                        channel_data[channel] = exr_file.channel(channel, Imath.PixelType(Imath.PixelType.FLOAT))
+                                    else:
+                                        available_channels = list(exr_file.header()['channels'].keys())
+                                        if available_channels:
+                                            channel_data[channel] = exr_file.channel(available_channels[0], Imath.PixelType(Imath.PixelType.FLOAT))
+                                
+                                if len(channel_data) >= 3:
+                                    r = np.frombuffer(channel_data['R'], dtype=np.float32).reshape((height, width))
+                                    g = np.frombuffer(channel_data['G'], dtype=np.float32).reshape((height, width))
+                                    b = np.frombuffer(channel_data['B'], dtype=np.float32).reshape((height, width))
+                                    exr_image = np.stack([r, g, b], axis=2)
+                                elif len(channel_data) == 1:
+                                    channel_name = list(channel_data.keys())[0]
+                                    single = np.frombuffer(channel_data[channel_name], dtype=np.float32).reshape((height, width))
+                                    exr_image = np.stack([single, single, single], axis=2)
+                                exr_file.close()
+                            else:
+                                exr_image = imageio_v2.imread(str(exr_files[0]))
+                            if exr_image.dtype != np.uint8:
+                                max_val = exr_image.max()
+                                min_val = exr_image.min()
+                                
+                                # 处理负值
+                                if min_val < 0:
+                                    exr_image = np.maximum(exr_image, 0)
+                                
+                                # Tone mapping
+                                if max_val > 1.0:
+                                    print(f"   使用 tone mapping (值范围: {min_val:.2f} - {max_val:.2f})")
+                                    exr_image = exr_image / (1 + exr_image * 0.8)
+                                
+                                # 确保值在 0-1 范围内
+                                exr_image = np.clip(exr_image, 0, 1)
+                                
+                                # 应用 gamma 校正
+                                print(f"   应用 gamma 校正 (2.2)")
+                                exr_image = np.power(exr_image, 1.0 / 2.2)
+                                
+                                # 转换为 uint8
+                                exr_image = (exr_image * 255).astype(np.uint8)
+                            if len(exr_image.shape) == 3 and exr_image.shape[2] > 3:
+                                exr_image = exr_image[:, :, :3]
+                            if len(exr_image.shape) == 2:
+                                exr_image = np.stack([exr_image, exr_image, exr_image], axis=2)
+                            
+                            try:
+                                import imageio
+                                import imageio.v2 as imageio_v2
+                                imageio_v2.imwrite(str(output_path), exr_image)
+                            except ImportError:
+                                from PIL import Image
+                                Image.fromarray(exr_image).save(str(output_path))
+                            print(f"✓ 从原始 frames 目录转换 EXR 到 PNG: {output_path}")
+                            return output_path
+                        except ImportError as e:
+                            print(f"⚠ 无法转换 EXR: 缺少必要的库")
+                            print(f"  请安装: pip install OpenEXR imageio")
+                            print(f"  错误: {e}")
+                            print(f"  原始 EXR 文件: {exr_files[0]}")
+                            # 如果转换失败，至少复制 EXR 文件
+                            exr_output = output_path.with_suffix('.exr')
+                            shutil.copy2(exr_files[0], exr_output)
+                            print(f"  已复制 EXR 文件到: {exr_output}")
+                            return str(exr_output)
+                        except Exception as e:
+                            print(f"⚠ EXR 转换失败: {e}")
+                            import traceback
+                            traceback.print_exc()
+                            # 如果转换失败，至少复制 EXR 文件
+                            exr_output = output_path.with_suffix('.exr')
+                            shutil.copy2(exr_files[0], exr_output)
+                            print(f"  已复制 EXR 文件到: {exr_output}")
+                            return str(exr_output)
+                    else:
+                        print(f"  原始 frames 目录中也没有找到 EXR 文件")
+                else:
+                    print(f"  原始 frames 目录不存在: {scene_frames_dir}")
             
-            print(f"✓ 图片已渲染到: {output_path}")
-            return output_path
+            # 如果找到了文件（无论是PNG还是EXR），返回路径
+            if rendered_files:
+                print(f"✓ 图片已渲染到: {output_path}")
+                return output_path
+            else:
+                print(f"⚠ 未找到渲染文件")
+                return None
         except Exception as e:
             print(f"✗ 渲染失败: {e}")
             raise

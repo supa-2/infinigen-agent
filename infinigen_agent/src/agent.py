@@ -15,8 +15,8 @@ from src.color_parser import ColorParser
 from src.scene_color_applier import SceneColorApplier
 from src.scene_renderer import SceneRenderer
 from src.scene_generator import SceneGenerator
-from src.static_asset_importer import StaticAssetImporter
 from src.procedural_furniture_generator import ProceduralFurnitureGenerator
+from src.room_type_detector import detect_room_type
 from typing import List, Optional
 
 
@@ -171,24 +171,21 @@ Please output RGB values directly in the format: furniture_name: (R, G, B), do n
         user_request: str,
         scene_path: str,
         output_path: Optional[str] = None,
-        import_missing_assets: bool = True,
-        static_assets_root: Optional[str] = None,
         use_procedural_generation: bool = True
     ) -> str:
         """
         处理完整的用户请求流程
         
-        新流程：
-        1. 优先从静态资产目录导入家具并应用颜色
-        2. 对于静态资产中缺失的家具，使用程序化生成器生成并应用颜色
+        流程：
+        1. 生成色彩方案
+        2. 解析颜色信息
+        3. 使用程序化生成器生成家具并应用颜色，或在场景中查找已有对象
         
         Args:
             user_request: 用户请求
             scene_path: 输入场景文件路径
             output_path: 输出场景文件路径（可选）
-            import_missing_assets: 是否导入缺失的外部资产（默认 True）
-            static_assets_root: 静态资产根目录（可选）
-            use_procedural_generation: 是否对缺失的家具使用程序化生成（默认 True）
+            use_procedural_generation: 是否使用程序化生成（默认 True）
             
         Returns:
             输出场景文件路径
@@ -210,78 +207,10 @@ Please output RGB values directly in the format: furniture_name: (R, G, B), do n
         from src.scene_color_applier import SceneColorApplier
         applier = SceneColorApplier(scene_path)
         
-        # 步骤3: 优先从静态资产目录导入家具并应用颜色
-        imported_furniture_types = set()  # 记录已成功导入并应用颜色的家具类型
-        
-        if import_missing_assets:
-            try:
-                print("\n" + "="*60)
-                print("步骤1: 优先从静态资产目录导入家具并应用颜色")
-                print("="*60)
-                
-                # StaticAssetImporter 使用当前已加载的场景（通过SceneColorApplier加载）
-                importer = StaticAssetImporter()  # 不传scene_path，使用当前场景
-                
-                # 将FurnitureColor对象转换为字典格式
-                furniture_color_dicts = []
-                for color in colors:
-                    furniture_color_dicts.append({
-                        "furniture": color.furniture_type,
-                        "color": color.color_name,
-                        "rgb": color.rgb,
-                        "hex_color": color.hex_color
-                    })
-                
-                # 尝试从静态资产目录导入家具
-                imported_objects = importer.import_furniture_assets(
-                    furniture_color_dicts,
-                    static_assets_root=static_assets_root
-                )
-                
-                if imported_objects:
-                    print(f"\n✓ 成功导入 {sum(len(objs) for objs in imported_objects.values())} 个静态资产")
-                    
-                    # 对导入的静态资产立即应用颜色
-                    print("\n正在对导入的静态资产应用颜色...")
-                    
-                    for furniture_type, objects in imported_objects.items():
-                        # 找到对应的颜色
-                        matching_color = None
-                        for color in colors:
-                            if color.furniture_type.lower() == furniture_type.lower():
-                                matching_color = color
-                                break
-                        
-                        if matching_color and objects:
-                            for obj in objects:
-                                applier.apply_color_to_object(obj, matching_color)
-                            imported_furniture_types.add(furniture_type.lower())
-                            print(f"  ✓ {furniture_type}: 已导入 {len(objects)} 个对象并应用颜色")
-                        else:
-                            print(f"  ⚠ {furniture_type}: 导入成功但未找到对应颜色")
-                else:
-                    print("⚠ 未导入任何静态资产（可能资产文件夹不存在或为空）")
-                    print("  将尝试使用程序化生成或场景中已有对象")
-            except Exception as e:
-                print(f"⚠ 导入静态资产时出错: {e}")
-                print("  将继续处理剩余家具（使用程序化生成或场景中已有对象）")
-                import traceback
-                traceback.print_exc()
-        
-        # 步骤4: 对静态资产中缺失的家具，使用程序化生成器生成并应用颜色
-        remaining_colors = [
-            color for color in colors 
-            if color.furniture_type.lower() not in imported_furniture_types
-        ]
-        
-        if remaining_colors:
-            print(f"\n找到 {len(remaining_colors)} 个需要处理的家具类型（静态资产中缺失）:")
-            for color in remaining_colors:
-                print(f"  - {color.furniture_type}")
-        
-        if remaining_colors and use_procedural_generation:
+        # 步骤3: 使用程序化生成器生成家具并应用颜色，或在场景中查找已有对象
+        if use_procedural_generation:
             print("\n" + "="*60)
-            print("步骤2: 对缺失的家具，使用程序化生成器生成并应用颜色")
+            print("步骤3: 使用程序化生成器生成家具并应用颜色")
             print("="*60)
             
             # 初始化程序化生成器
@@ -290,12 +219,11 @@ Please output RGB values directly in the format: furniture_name: (R, G, B), do n
                 coarse=False
             )
             
-            # 生成缺失的家具
-            generated_objects = {}
+            # 分类家具：支持程序化生成 vs 不支持
             procedural_supported = []
             procedural_unsupported = []
             
-            for color in remaining_colors:
+            for color in colors:
                 furniture_type = color.furniture_type.lower()
                 
                 # 检查是否支持程序化生成
@@ -311,7 +239,6 @@ Please output RGB values directly in the format: furniture_name: (R, G, B), do n
                     furniture_type = color.furniture_type.lower()
                     
                     # 生成家具（默认位置在原点，可以根据需要调整）
-                    # 这里可以根据场景布局智能放置，暂时使用默认位置
                     # 在生成时直接指定颜色
                     obj = generator.generate_furniture(
                         furniture_type=furniture_type,
@@ -320,10 +247,6 @@ Please output RGB values directly in the format: furniture_name: (R, G, B), do n
                     )
                     
                     if obj:
-                        if furniture_type not in generated_objects:
-                            generated_objects[furniture_type] = []
-                        generated_objects[furniture_type].append(obj)
-                        
                         # 如果生成时已经应用了颜色（通过color参数），则不需要再次应用
                         if color.rgb:
                             # 颜色已在生成时应用（通过generate_furniture的color参数）
@@ -346,12 +269,12 @@ Please output RGB values directly in the format: furniture_name: (R, G, B), do n
                         print(f"  ✓ {color.furniture_type}: 找到 {len(objects)} 个对象并应用颜色")
                     else:
                         print(f"  ⚠ {color.furniture_type}: 未找到匹配的对象（不支持程序化生成且场景中不存在）")
-        elif remaining_colors:
+        else:
             # 不使用程序化生成，只在场景中查找已有对象
             print("\n" + "="*60)
-            print("步骤2: 在场景中查找已有家具并应用颜色")
+            print("步骤3: 在场景中查找已有家具并应用颜色")
             print("="*60)
-            applier.apply_colors_to_scene(remaining_colors)
+            applier.apply_colors_to_scene(colors)
         
         # 保存最终场景
         if output_path is None:
@@ -396,116 +319,34 @@ Please output RGB values directly in the format: furniture_name: (R, G, B), do n
         print(f"✓ 图片已保存: {output_path}")
         return output_path
     
-    def render_multiple_cameras(
-        self,
-        scene_path: str,
-        output_folder: str,
-        cameras: Optional[List] = None,
-        resolution: Optional[tuple] = None
-    ) -> List[str]:
-        """
-        使用多个相机渲染图片
-        
-        Args:
-            scene_path: 场景文件路径
-            output_folder: 输出文件夹路径
-            cameras: 相机对象列表（如果为None，使用场景中的所有相机）
-            resolution: 分辨率 (width, height)
-            
-        Returns:
-            渲染的图片路径列表
-        """
-        print(f"\n正在使用多个相机渲染图片...")
-        print(f"场景: {scene_path}")
-        print(f"输出文件夹: {output_folder}")
-        
-        self.scene_renderer = SceneRenderer(scene_path)
-        rendered_files = self.scene_renderer.render_multiple_cameras(
-            output_folder=output_folder,
-            cameras=cameras,
-            resolution=resolution
-        )
-        
-        print(f"✓ 共渲染 {len(rendered_files)} 张图片")
-        return rendered_files
-    
-    def render_scene_video(
-        self,
-        scene_path: str,
-        output_folder: str,
-        num_frames: int = 60,
-        fps: int = 24,
-        resolution: Optional[tuple] = None
-    ) -> str:
-        """
-        渲染场景视频
-        
-        Args:
-            scene_path: 场景文件路径
-            output_folder: 输出文件夹
-            num_frames: 帧数
-            fps: 帧率
-            resolution: 分辨率
-            
-        Returns:
-            输出视频路径
-        """
-        print(f"\n正在渲染视频...")
-        print(f"场景: {scene_path}")
-        print(f"输出文件夹: {output_folder}")
-        print(f"帧数: {num_frames}, 帧率: {fps} fps")
-        
-        self.scene_renderer = SceneRenderer(scene_path)
-        output_path = self.scene_renderer.render_and_create_video(
-            output_folder=output_folder,
-            num_frames=num_frames,
-            fps=fps,
-            resolution=resolution
-        )
-        
-        print(f"✓ 视频已保存: {output_path}")
-        return output_path
-    
     def process_request_with_render(
         self,
         user_request: str,
         scene_path: str,
         output_path: Optional[str] = None,
         render_image: bool = True,
-        render_video: bool = False,
-        video_frames: int = 60,
-        video_fps: int = 24,
         resolution: Optional[tuple] = None,
-        import_missing_assets: bool = True,
-        static_assets_root: Optional[str] = None,
         use_procedural_generation: bool = True
     ) -> dict:
         """
-        处理请求并渲染图片/视频
+        处理请求并渲染图片
         
         Args:
             user_request: 用户请求
             scene_path: 输入场景文件路径
             output_path: 输出场景文件路径（可选）
             render_image: 是否渲染图片
-            render_video: 是否渲染视频
-            video_frames: 视频帧数
-            video_fps: 视频帧率
             resolution: 分辨率 (width, height)
-            import_missing_assets: 是否导入静态资产
-            static_assets_root: 静态资产根目录
             use_procedural_generation: 是否使用程序化生成
             
         Returns:
             包含输出路径的字典
         """
-        # 步骤1-3: 处理颜色（原有流程）
+        # 步骤1-3: 处理颜色
         colored_scene = self.process_request(
             user_request, 
             scene_path, 
             output_path,
-            import_missing_assets=import_missing_assets,
-            static_assets_root=static_assets_root,
             use_procedural_generation=use_procedural_generation
         )
         
@@ -523,18 +364,6 @@ Please output RGB values directly in the format: furniture_name: (R, G, B), do n
                 resolution=resolution
             )
         
-        # 步骤5: 渲染视频
-        if render_video:
-            output_dir = Path(colored_scene).parent
-            video_folder = output_dir / "video_output"
-            results["video"] = self.render_scene_video(
-                scene_path=colored_scene,
-                output_folder=str(video_folder),
-                num_frames=video_frames,
-                fps=video_fps,
-                resolution=resolution
-            )
-        
         return results
     
     def generate_scene_from_request(
@@ -543,6 +372,7 @@ Please output RGB values directly in the format: furniture_name: (R, G, B), do n
         output_folder: str,
         seed: Optional[int] = None,
         gin_configs: Optional[List[str]] = None,
+        gin_overrides: Optional[List[str]] = None,
         timeout: Optional[int] = None
     ) -> Path:
         """
@@ -552,7 +382,8 @@ Please output RGB values directly in the format: furniture_name: (R, G, B), do n
             user_request: 用户请求，如 "生成一个北欧风的卧室"
             output_folder: 输出文件夹路径
             seed: 随机种子（如果为None，则随机生成）
-            gin_configs: gin 配置文件列表
+            gin_configs: gin 配置文件列表（默认使用 fast_solve.gin singleroom.gin）
+            gin_overrides: gin 参数覆盖列表
             timeout: 超时时间（秒）
             
         Returns:
@@ -563,24 +394,47 @@ Please output RGB values directly in the format: furniture_name: (R, G, B), do n
         
         # 如果seed为None，随机生成
         # 注意：Infinigen会将seed字符串作为十六进制解析（如果可能）
-        # 解决方案：直接生成一个包含字母的十六进制字符串，确保解析后的值不超过2**32-1
+        # 使用较小的seed值（1-10000），因为较小的seed通常生成更简单的场景，速度更快
         import random
         if seed is None:
-            # 生成1到2**32-1之间的随机整数
-            max_seed = 2**32 - 1  # 4,294,967,295
-            seed_int = random.randint(1, max_seed)
+            # 生成0到10000之间的随机整数（较小的seed值，通常生成更快的场景）
+            max_seed = 10000
+            seed_int = random.randint(0, max_seed)
             # 直接转换为8位十六进制字符串（包含字母），这样：
             # 1. 解析后的值就是seed_int，不会超过max_seed
             # 2. 包含字母，明确表示这是十六进制格式
-            seed = format(seed_int, '08x')  # 例如: "a1b2c3d4"
+            seed = format(seed_int, '08x')  # 例如: "00002710" (10000的十六进制)
             print(f"ℹ 未指定seed，使用随机seed: {seed} (解析值: {seed_int})")
+        
+        # 检测房间类型
+        room_type = detect_room_type(user_request)
+        
+        # 默认使用超快配置（ultra_fast_solve.gin 比 fast_solve.gin 更快）
+        if gin_configs is None:
+            gin_configs = ["ultra_fast_solve.gin", "singleroom.gin"]
+        
+        # 构建 gin_overrides（如果未提供）
+        if gin_overrides is None:
+            gin_overrides = ["compose_indoors.terrain_enabled=False"]
+            
+            # 如果检测到房间类型，添加房间限制
+            # 注意：使用官方文档中的格式，方括号和引号需要转义
+            # 格式：restrict_solving.restrict_parent_rooms=\[\"RoomType\"\]
+            # 在 Python 字符串中：\\[ 表示 shell 中的 \[，\\" 表示 shell 中的 \"
+            if room_type:
+                gin_overrides.append(f'restrict_solving.restrict_parent_rooms=\\[\\"{room_type}\\"\\]')
+                print(f"✓ 检测到房间类型: {room_type}")
         
         print("="*60)
         print("开始生成场景")
         print("="*60)
         print(f"用户请求: {user_request}")
+        if room_type:
+            print(f"检测到的房间类型: {room_type}")
         print(f"输出文件夹: {output_folder}")
         print(f"种子: {seed}")
+        print(f"Gin 配置: {gin_configs}")
+        print(f"Gin 覆盖: {gin_overrides}")
         print("\n提示: 场景生成通常需要 5-15 分钟，请耐心等待...")
         print("     生成过程中会显示详细进度信息")
         print("="*60)
@@ -590,6 +444,7 @@ Please output RGB values directly in the format: furniture_name: (R, G, B), do n
             seed=seed,
             task="coarse",
             gin_configs=gin_configs,
+            gin_overrides=gin_overrides,
             timeout=timeout
         )
         
@@ -623,6 +478,7 @@ Please output RGB values directly in the format: furniture_name: (R, G, B), do n
                     seed=seed,
                     task="coarse",
                     gin_configs=gin_configs,
+                    gin_overrides=gin_overrides,
                     timeout=timeout,
                     apply_colors_callback=apply_colors_callback
                 )
@@ -668,26 +524,22 @@ Please output RGB values directly in the format: furniture_name: (R, G, B), do n
         output_folder: str,
         seed: int = 0,
         gin_configs: Optional[List[str]] = None,
+        gin_overrides: Optional[List[str]] = None,
         generate_timeout: Optional[int] = None,
         render_image: bool = True,
-        render_video: bool = False,
-        video_frames: int = 60,
-        video_fps: int = 24,
         resolution: Optional[tuple] = None
     ) -> dict:
         """
-        完整流程：从用户输入自动生成场景、应用颜色、渲染图片/视频
+        完整流程：从用户输入自动生成场景、应用颜色、渲染图片
         
         Args:
             user_request: 用户请求，如 "生成一个北欧风的卧室"
             output_folder: 输出文件夹路径
             seed: 随机种子
-            gin_configs: gin 配置文件列表
+            gin_configs: gin 配置文件列表（默认使用 fast_solve.gin singleroom.gin）
+            gin_overrides: gin 参数覆盖列表
             generate_timeout: 场景生成超时时间（秒）
             render_image: 是否渲染图片
-            render_video: 是否渲染视频
-            video_frames: 视频帧数
-            video_fps: 视频帧率
             resolution: 分辨率 (width, height)
             
         Returns:
@@ -703,18 +555,16 @@ Please output RGB values directly in the format: furniture_name: (R, G, B), do n
             output_folder=output_folder,
             seed=seed,
             gin_configs=gin_configs,
+            gin_overrides=gin_overrides,
             timeout=generate_timeout
         )
         
-        # 步骤2-4: 应用颜色并渲染（复用现有方法）
+        # 步骤2-3: 应用颜色并渲染
         results = self.process_request_with_render(
             user_request=user_request,
             scene_path=str(scene_file),
             output_path=None,  # 使用默认命名
             render_image=render_image,
-            render_video=render_video,
-            video_frames=video_frames,
-            video_fps=video_fps,
             resolution=resolution
         )
         
@@ -727,8 +577,6 @@ Please output RGB values directly in the format: furniture_name: (R, G, B), do n
         print(f"带颜色的场景: {results['colored_scene']}")
         if 'image' in results:
             print(f"渲染的图片: {results['image']}")
-        if 'video' in results:
-            print(f"渲染的视频: {results['video']}")
         
         return results
 

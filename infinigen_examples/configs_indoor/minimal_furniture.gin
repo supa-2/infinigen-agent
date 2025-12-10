@@ -1,0 +1,20 @@
+# 最少家具配置 - 只保留主要家具
+# 大幅减少家具数量以加快场景生成速度
+# 结合 singleroom 使用效果最佳
+
+# 基础优化（继承 fast_solve 的部分配置）
+FloorPlanSolver.n_divide_trials = 10
+FloorPlanSolver.iters_mult = 10
+
+home_room_constraints.has_fewer_rooms = True
+
+# 大幅减少迭代次数（比 fast_solve 更激进）
+compose_indoors.solve_steps_large = 30
+compose_indoors.solve_steps_medium = 10
+compose_indoors.solve_steps_small = 2
+
+# 增加 addition_weight_scalar，让求解器更倾向于不添加对象
+# 这会减少家具数量，因为添加新对象的成本更高
+solve_objects.addition_weight_scalar = 10.0
+
+compose_indoors.terrain_enabled = False

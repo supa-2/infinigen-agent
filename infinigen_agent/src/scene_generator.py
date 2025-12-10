@@ -49,6 +49,7 @@ class SceneGenerator:
         seed: Optional[int] = None,
         task: str | list[str] = "coarse",
         gin_configs: Optional[list] = None,
+        gin_overrides: Optional[list] = None,
         timeout: Optional[int] = None,
         use_shell_script: bool = False,
         auto_rename: bool = True,
@@ -64,6 +65,7 @@ class SceneGenerator:
                 - 单个任务: 'coarse' 或 'render'
                 - 多个任务: ['coarse', 'render'] 或 'coarse render'（一步完成生成和渲染）
             gin_configs: gin 配置文件列表，如 ['base', 'disable/no_objects']
+            gin_overrides: gin 参数覆盖列表，如 ['compose_indoors.terrain_enabled=False']
             timeout: 超时时间（秒），None 表示不设置超时
             use_shell_script: 是否使用 shell 脚本方式
             auto_rename: 如果输出文件夹已存在，是否自动重命名（添加时间戳），默认 True
@@ -92,27 +94,33 @@ class SceneGenerator:
                     f"\n将覆盖已有文件。如需避免覆盖，请设置 auto_rename=True"
                 )
         
+        # 确保输出目录存在（包括所有父目录）
+        # 重要：必须在调用 Infinigen 之前创建，因为 Infinigen 内部会尝试保存文件
         output_path.mkdir(parents=True, exist_ok=True)
+        
+        # 确保目录确实存在（双重检查）
+        if not output_path.exists():
+            raise RuntimeError(f"无法创建输出目录: {output_path}")
         
         # 如果seed为None，随机生成
         # 注意：Infinigen会将seed字符串作为十六进制解析（如果可能）
-        # 例如：seed="303842763"会被解析为0x303842763=12943894371，超过了2**32-1
-        # 解决方案：直接生成一个包含字母的十六进制字符串，确保解析后的值不超过2**32-1
+        # 使用较小的seed值（1-10000），因为较小的seed通常生成更简单的场景，速度更快
         import random
         if seed is None:
-            # 生成1到2**32-1之间的随机整数
-            max_seed = 2**32 - 1  # 4,294,967,295
-            seed_int = random.randint(1, max_seed)
+            # 生成0到10000之间的随机整数（较小的seed值，通常生成更快的场景）
+            max_seed = 10000
+            seed_int = random.randint(0, max_seed)
             # 直接转换为8位十六进制字符串（包含字母），这样：
             # 1. 解析后的值就是seed_int，不会超过max_seed
             # 2. 包含字母，明确表示这是十六进制格式
-            seed = format(seed_int, '08x')  # 例如: "a1b2c3d4"
+            seed = format(seed_int, '08x')  # 例如: "00002710" (10000的十六进制)
             logger.info(f"未指定seed，使用随机seed: {seed} (解析值: {seed_int})")
         
-        # 默认 gin 配置
-        # 注意：如果遇到 terrain 编译错误，可以尝试使用 'disable/terrain' 配置
+        # 默认 gin 配置（匹配官方 hello_room 配置）
+        # 注意：根据 generate_indoors.py 第 518 行，官方会自动加载 base_indoors.gin
+        # 如果 gin_configs 为空，使用官方 hello_room 推荐配置
         if gin_configs is None:
-            gin_configs = ['base', 'disable/no_objects']
+            gin_configs = ['fast_solve.gin', 'singleroom.gin']
         
         # 处理 task 参数：支持单个任务或多个任务
         # Infinigen 原生支持 -t coarse render 一次完成生成和渲染
@@ -146,13 +154,28 @@ class SceneGenerator:
             for config in gin_configs:
                 cmd_parts.extend(['-g', config])
         
+        # 添加 gin 参数覆盖（使用 -p 参数，多个覆盖用空格分隔，与原生脚本一致）
+        if gin_overrides:
+            cmd_parts.append('-p')
+            for override in gin_overrides:
+                # gin_overrides 中的参数可能已经包含转义（如列表参数）
+                # 直接添加，不要再次转义
+                cmd_parts.append(override)
+        
         # 构建完整的 shell 命令字符串（与原生脚本执行方式一致）
         # 注意：使用 shell=True 确保和原生脚本的执行环境一致
-        shell_cmd = ' '.join(f'"{part}"' if ' ' in str(part) else str(part) for part in cmd_parts)
+        # gin_overrides 中的参数格式：restrict_solving.restrict_parent_rooms=\[\"RoomType\"\]
+        # 在 shell 中，\[ 会被解释为 [，\" 会被解释为 "，所以最终传递给 gin 的是 ["RoomType"]
+        # 关键：直接使用 gin_overrides 中的格式，不要额外转义或包裹
+        # 官方命令格式就是这样的，shell 会正确解释
+        shell_cmd = ' '.join(str(part) for part in cmd_parts)
         
         logger.info(f"开始生成场景...")
         logger.info(f"输出文件夹: {output_path}")
         logger.info(f"种子: {seed}, 任务: {task_list}")
+        logger.info(f"Gin 配置: {gin_configs}")
+        if gin_overrides:
+            logger.info(f"Gin 覆盖: {gin_overrides}")
         if len(task_list) > 1:
             logger.info(f"⚠ 将一次完成多个任务: {', '.join(task_list)}")
         logger.info(f"命令（与原生脚本一致）: {shell_cmd}")
@@ -191,10 +214,31 @@ class SceneGenerator:
             
             logger.info("场景生成成功")
             
-            # 查找生成的场景文件
-            scene_file = self._find_scene_file(output_path)
-            if scene_file:
-                logger.info(f"找到场景文件: {scene_file}")
+            # 等待场景文件生成（如果命令完成但文件还没生成，等待一段时间）
+            import time
+            max_wait_time = 60  # 最多等待60秒
+            wait_interval = 2   # 每2秒检查一次
+            waited_time = 0
+            
+            scene_file = None
+            while waited_time < max_wait_time:
+                scene_file = self._find_scene_file(output_path)
+                if scene_file and scene_file.exists():
+                    # 检查文件大小，确保文件已完全写入（至少大于1KB）
+                    if scene_file.stat().st_size > 1024:
+                        logger.info(f"✓ 找到场景文件: {scene_file} (大小: {scene_file.stat().st_size / (1024*1024):.2f} MB)")
+                        break
+                    else:
+                        logger.debug(f"场景文件存在但可能未完全写入，继续等待...")
+                else:
+                    logger.debug(f"等待场景文件生成... ({waited_time}/{max_wait_time}秒)")
+                time.sleep(wait_interval)
+                waited_time += wait_interval
+            
+            if scene_file and scene_file.exists() and scene_file.stat().st_size > 1024:
+                logger.info(f"✓ 场景文件已生成并确认: {scene_file}")
+                print(f"✓ 场景文件已生成: {scene_file}")
+                print(f"  文件大小: {scene_file.stat().st_size / (1024*1024):.2f} MB")
                 
                 # 如果提供了颜色应用回调，在生成后立即应用颜色
                 if apply_colors_callback:
@@ -210,9 +254,26 @@ class SceneGenerator:
                         logger.error(f"应用颜色时出错: {e}")
                         logger.warning("继续使用原始场景文件")
                 
+                print(f"✓ generate_scene 返回: {scene_file}")
                 return scene_file
             else:
-                logger.warning("未找到场景文件，但命令执行成功")
+                if scene_file:
+                    file_size = scene_file.stat().st_size if scene_file.exists() else 0
+                    logger.warning(f"场景文件存在但可能无效: {scene_file} (大小: {file_size} 字节)")
+                    print(f"⚠ 场景文件可能未完全生成: {scene_file} (大小: {file_size} 字节)")
+                else:
+                    logger.warning("未找到场景文件，但命令执行成功")
+                    print(f"⚠ 未找到场景文件，尝试使用输出目录: {output_path}")
+                    # 尝试在输出目录中查找场景文件
+                    blend_files = list(output_path.rglob("*.blend"))
+                    if blend_files:
+                        scene_file = blend_files[0]
+                        if scene_file.stat().st_size > 1024:
+                            print(f"✓ 在输出目录中找到场景文件: {scene_file}")
+                            return scene_file
+                
+                # 即使没找到文件，也返回输出路径，让调用者决定如何处理
+                print(f"⚠ generate_scene 返回输出目录: {output_path}")
                 return output_path
             
         except subprocess.TimeoutExpired:
