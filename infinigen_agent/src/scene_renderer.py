@@ -31,6 +31,75 @@ class SceneRenderer:
         if scene_path:
             self.load_scene(scene_path)
     
+    def render_preview(
+        self,
+        output_path: str,
+        camera: Optional[bpy.types.Object] = None,
+        resolution: tuple = (1920, 1080),
+        engine: str = "BLENDER_EEVEE"
+    ) -> str:
+        """
+        快速预览渲染（使用 Workbench 或 Eevee 引擎，<1秒）
+        
+        Args:
+            output_path: 输出图片路径
+            camera: 相机对象（如果为None，使用场景默认相机）
+            resolution: 分辨率 (width, height)
+            engine: 渲染引擎，"BLENDER_EEVEE" 或 "BLENDER_WORKBENCH"
+            
+        Returns:
+            输出文件路径
+        """
+        if camera is None:
+            cameras = self.get_cameras()
+            if cameras:
+                camera = cameras[0]
+                print(f"✓ 使用相机: {camera.name}")
+            else:
+                raise ValueError("未找到相机")
+        
+        # 设置活动相机
+        bpy.context.scene.camera = camera
+        
+        # 设置渲染引擎
+        if engine not in ["BLENDER_EEVEE", "BLENDER_WORKBENCH"]:
+            raise ValueError(f"不支持的渲染引擎: {engine}，请使用 BLENDER_EEVEE 或 BLENDER_WORKBENCH")
+        
+        bpy.context.scene.render.engine = engine
+        
+        # 设置分辨率
+        bpy.context.scene.render.resolution_x = resolution[0]
+        bpy.context.scene.render.resolution_y = resolution[1]
+        
+        # 设置输出格式
+        bpy.context.scene.render.image_settings.file_format = "PNG"
+        bpy.context.scene.render.image_settings.color_mode = "RGB"
+        bpy.context.scene.render.image_settings.color_depth = "8"
+        
+        # 如果是 Eevee，设置快速采样
+        if engine == "BLENDER_EEVEE":
+            bpy.context.scene.eevee.taa_render_samples = 16  # 低采样，快速渲染
+        
+        # 如果是 Workbench，设置快速模式
+        elif engine == "BLENDER_WORKBENCH":
+            bpy.context.scene.display.shading.light = "FLAT"  # 平面着色，最快
+            bpy.context.scene.display.shading.color_type = "MATERIAL"  # 材质颜色
+        
+        # 设置输出路径
+        output_dir = Path(output_path).parent
+        output_dir.mkdir(parents=True, exist_ok=True)
+        bpy.context.scene.render.filepath = str(output_path)
+        
+        # 渲染
+        print(f"⚡ 使用 {engine} 快速预览渲染中...")
+        import time
+        start_time = time.time()
+        bpy.ops.render.render(write_still=True)
+        render_time = time.time() - start_time
+        print(f"✓ 快速预览渲染完成（耗时: {render_time:.2f} 秒）")
+        
+        return output_path
+    
     def load_scene(self, scene_path: str):
         """加载 Blender 场景"""
         try:

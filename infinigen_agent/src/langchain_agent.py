@@ -24,6 +24,7 @@ from src.scene_renderer import SceneRenderer
 from src.color_parser import ColorParser
 from src.procedural_furniture_generator import ProceduralFurnitureGenerator
 from src.room_type_detector import detect_room_type
+from src.template_pool_manager import TemplatePoolManager
 import numpy as np
 
 # 导入 vLLM API 配置
@@ -57,7 +58,9 @@ class LangChainInfinigenAgent:
         glm_base_url: str = "https://llmapi.paratera.com",
         qwen_model_name: Optional[str] = None,
         vllm_api_url: Optional[str] = None,
-        vllm_api_key: Optional[str] = None
+        vllm_api_key: Optional[str] = None,
+        use_template_pool: bool = True,
+        template_pool_root: Optional[str] = None
     ):
         """
         初始化 LangChain Agent
@@ -69,6 +72,8 @@ class LangChainInfinigenAgent:
             qwen_model_name: Qwen 模型名称（vLLM 部署的模型，默认从配置文件读取）
             vllm_api_url: vLLM API URL（默认从配置文件读取）
             vllm_api_key: vLLM API Key（默认从配置文件读取）
+            use_template_pool: 是否使用模板池（预生成场景模板）
+            template_pool_root: 模板池根目录（默认: infinigen_agent/templates）
         """
         self.infinigen_root = infinigen_root or self._detect_infinigen_root()
         
@@ -109,6 +114,16 @@ class LangChainInfinigenAgent:
         self.scene_applier = None
         self.scene_renderer = None
         self.procedural_generator = None  # 延迟初始化（需要在 Blender 环境中）
+        
+        # 初始化模板池管理器
+        self.use_template_pool = use_template_pool
+        if use_template_pool:
+            self.template_pool = TemplatePoolManager(pool_root=template_pool_root)
+            stats = self.template_pool.get_statistics()
+            logger.info(f"模板池已启用，当前有 {stats['total_templates']} 个模板")
+        else:
+            self.template_pool = None
+            logger.info("模板池未启用，将直接生成场景")
         
         logger.info("LangChain Infinigen Agent 初始化完成")
     
@@ -212,7 +227,9 @@ class LangChainInfinigenAgent:
         user_input: str,
         output_folder: str,
         seed: Optional[str] = None,
-        timeout: Optional[int] = None
+        timeout: Optional[int] = None,
+        mode: str = "template",
+        auto_confirm: bool = False
     ) -> Dict[str, Any]:
         """
         处理用户请求的完整流程
@@ -222,6 +239,10 @@ class LangChainInfinigenAgent:
             output_folder: 输出文件夹
             seed: 随机种子
             timeout: 超时时间
+            mode: 处理模式
+                - "template": 使用模板池（默认）
+                - "generate": 快速生成新场景
+            auto_confirm: 是否自动确认（快速生成模式下，True=自动进行精修渲染，False=只返回预览）
             
         Returns:
             包含场景文件、渲染图片等信息的字典
@@ -245,6 +266,34 @@ class LangChainInfinigenAgent:
         
         print(f"✓ 输入验证通过: {validation_message}")
         
+        # 根据模式选择处理流程
+        if mode == "generate":
+            return self._process_generate_mode(user_input, output_folder, seed, timeout, auto_confirm)
+        else:  # mode == "template" (默认)
+            return self._process_template_mode(user_input, output_folder, seed, timeout)
+    
+    def _process_template_mode(
+        self,
+        user_input: str,
+        output_folder: str,
+        seed: Optional[str] = None,
+        timeout: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        模板模式：从模板池挑选模板，改色后渲染
+        
+        Args:
+            user_input: 用户输入
+            output_folder: 输出文件夹
+            seed: 随机种子
+            timeout: 超时时间
+            
+        Returns:
+            包含场景文件、渲染图片等信息的字典
+        """
+        print("\n📋 模式: 模板池模式（快速）")
+        print("=" * 60)
+        
         # 步骤2: 并行执行 - 生成颜色方案和场景
         print("\n步骤2: 并行生成颜色方案和场景...")
         
@@ -262,63 +311,108 @@ class LangChainInfinigenAgent:
                 "message": str(e)
             }
         
-        # 2.2 生成场景（并行）
-        print("  2.2 生成场景（使用 Infinigen 原生命令）...")
-        print("      ⚡ 使用超快配置（ultra_fast_solve.gin + singleroom.gin）")
-        print("      预计时间: 5-10 分钟（vs fast_solve 8-13 分钟，默认 50+ 分钟）")
+        # 2.2 生成场景（并行）- 优先使用模板池
+        print("  2.2 生成场景...")
         try:
             # 检测房间类型
             room_type = detect_room_type(user_input)
             
-            # 默认使用超快配置（ultra_fast_solve.gin 比 fast_solve.gin 更快）
-            # ultra_fast_solve.gin: FloorPlanSolver 参数更小（10 vs 25），求解步数相同
-            gin_configs = ['ultra_fast_solve.gin', 'singleroom.gin']
-            gin_overrides = ['compose_indoors.terrain_enabled=False']
-            
-            # 如果检测到房间类型，添加到覆盖中
-            # 注意：官方文档格式是 restrict_solving.restrict_parent_rooms=\[\"RoomType\"\]
-            # 在 shell 中，\[ 会被解释为 [，\" 会被解释为 "，所以最终传递给 gin 的是 ["RoomType"]
-            # 在 Python 字符串中，我们需要使用 \\[ 和 \\" 来表示 shell 中的 \[ 和 \"
-            # 但是 shell 解释 \" 时可能会丢失引号，所以我们需要使用不同的格式
-            # 实际上，gin 解析器期望的格式是 ["RoomType"]，而不是 [RoomType]
-            # 让我们直接使用官方文档中的格式，让 shell 正确解释
-            if room_type:
-                # 格式：restrict_solving.restrict_parent_rooms=\[\"RoomType\"\]
-                # 在 Python 字符串中：\\[ 表示 shell 中的 \[，\\" 表示 shell 中的 \"
-                gin_overrides.append(f'restrict_solving.restrict_parent_rooms=\\[\\"{room_type}\\"\\]')
-                print(f"      ✓ 检测到房间类型: {room_type}")
-            
-            scene_file = self.scene_generator.generate_scene(
-                output_folder=output_folder,
-                seed=seed,
-                task="coarse",
-                gin_configs=gin_configs,
-                gin_overrides=gin_overrides,
-                timeout=timeout
-            )
-            
-            # 确保 scene_file 是 Path 对象
             from pathlib import Path
-            scene_file = Path(scene_file)
+            from pathlib import Path
+            import shutil
             
-            print(f"  ✓ 场景生成命令执行完成")
-            print(f"  📁 返回的场景文件路径: {scene_file}")
+            scene_file = None
+            used_template = False
             
-            # 如果返回的是目录，尝试查找场景文件
-            if scene_file.is_dir():
-                print(f"  ⚠ 返回的是目录，正在查找场景文件...")
-                possible_scene = scene_file / "scene.blend"
-                if possible_scene.exists():
-                    scene_file = possible_scene
-                    print(f"  ✓ 找到场景文件: {scene_file}")
+            # 尝试从模板池获取模板
+            if self.use_template_pool and self.template_pool:
+                print("      🔍 正在从模板池检索可用模板...")
+                template = self.template_pool.find_best_template(room_type, prefer_recent=True)
+                
+                if template and Path(template.scene_file).exists():
+                    print(f"      ✓ 找到可用模板: {template.template_id}")
+                    print(f"         房间类型: {template.room_type or '完整房屋'}")
+                    print(f"         模板文件: {template.scene_file}")
+                    print(f"         文件大小: {template.file_size_mb:.2f} MB")
+                    print(f"      ⚡ 使用模板跳过场景生成步骤（节省 5-10 分钟）")
+                    
+                    # 复制模板文件到输出目录（保持原模板不变）
+                    output_path = Path(output_folder)
+                    output_path.mkdir(parents=True, exist_ok=True)
+                    
+                    # 复制模板文件
+                    template_path = Path(template.scene_file)
+                    scene_file = output_path / "scene.blend"
+                    
+                    print(f"      📋 正在复制模板到输出目录...")
+                    shutil.copy2(template_path, scene_file)
+                    print(f"      ✓ 模板已复制到: {scene_file}")
+                    
+                    used_template = True
                 else:
-                    # 递归查找
-                    blend_files = list(scene_file.rglob("*.blend"))
-                    if blend_files:
-                        scene_file = blend_files[0]
-                        print(f"  ✓ 找到场景文件: {scene_file}")
+                    if template:
+                        print(f"      ⚠ 模板文件不存在: {template.scene_file}，将生成新场景")
                     else:
-                        raise FileNotFoundError(f"在目录中未找到场景文件: {scene_file}")
+                        print(f"      ⚠ 未找到 {room_type or '完整房屋'} 类型的模板，将生成新场景")
+            
+            # 如果没有使用模板，则生成新场景
+            if not used_template:
+                print("      🏗️  使用 Infinigen 原生命令生成新场景...")
+                print("          ⚡ 使用超快配置（ultra_fast_solve.gin + singleroom.gin）")
+                print("          预计时间: 5-10 分钟（vs fast_solve 8-13 分钟，默认 50+ 分钟）")
+                
+                # 默认使用超快配置（ultra_fast_solve.gin 比 fast_solve.gin 更快）
+                # ultra_fast_solve.gin: FloorPlanSolver 参数更小（10 vs 25），求解步数相同
+                gin_configs = ['ultra_fast_solve.gin', 'singleroom.gin']
+                gin_overrides = ['compose_indoors.terrain_enabled=False']
+                
+                # 如果检测到房间类型，添加到覆盖中
+                # 注意：官方文档格式是 restrict_solving.restrict_parent_rooms=\[\"RoomType\"\]
+                # 在 shell 中，\[ 会被解释为 [，\" 会被解释为 "，所以最终传递给 gin 的是 ["RoomType"]
+                # 在 Python 字符串中，我们需要使用 \\[ 和 \\" 来表示 shell 中的 \[ 和 \"
+                # 但是 shell 解释 \" 时可能会丢失引号，所以我们需要使用不同的格式
+                # 实际上，gin 解析器期望的格式是 ["RoomType"]，而不是 [RoomType]
+                # 让我们直接使用官方文档中的格式，让 shell 正确解释
+                if room_type:
+                    # 格式：restrict_solving.restrict_parent_rooms=\[\"RoomType\"\]
+                    # 在 Python 字符串中：\\[ 表示 shell 中的 \[，\\" 表示 shell 中的 \"
+                    gin_overrides.append(f'restrict_solving.restrict_parent_rooms=\\[\\"{room_type}\\"\\]')
+                    print(f"          ✓ 检测到房间类型: {room_type}")
+                
+                scene_file = self.scene_generator.generate_scene(
+                    output_folder=output_folder,
+                    seed=seed,
+                    task="coarse",
+                    gin_configs=gin_configs,
+                    gin_overrides=gin_overrides,
+                    timeout=timeout
+                )
+                
+                # 确保 scene_file 是 Path 对象
+                scene_file = Path(scene_file)
+                
+                print(f"      ✓ 场景生成命令执行完成")
+                print(f"      📁 返回的场景文件路径: {scene_file}")
+                
+                # 如果返回的是目录，尝试查找场景文件
+                if scene_file.is_dir():
+                    print(f"      ⚠ 返回的是目录，正在查找场景文件...")
+                    possible_scene = scene_file / "scene.blend"
+                    if possible_scene.exists():
+                        scene_file = possible_scene
+                        print(f"      ✓ 找到场景文件: {scene_file}")
+                    else:
+                        # 递归查找
+                        blend_files = list(scene_file.rglob("*.blend"))
+                        if blend_files:
+                            scene_file = blend_files[0]
+                            print(f"      ✓ 找到场景文件: {scene_file}")
+                        else:
+                            raise FileNotFoundError(f"在目录中未找到场景文件: {scene_file}")
+            
+            # 确保 scene_file 是 Path 对象（如果还不是）
+            if not isinstance(scene_file, Path):
+                scene_file = Path(scene_file)
             
             # 确认场景文件存在且有效
             if not scene_file.exists():
@@ -329,7 +423,10 @@ class LangChainInfinigenAgent:
                 raise ValueError(f"场景文件大小异常（可能未完全生成）: {file_size} 字节")
             
             print(f"  ✓ 场景文件验证通过: {scene_file} (大小: {file_size / (1024*1024):.2f} MB)")
-            print(f"  → 准备继续执行后续步骤（应用颜色和渲染）...")
+            if used_template:
+                print(f"  → 使用模板，跳过场景生成，准备继续执行后续步骤（应用颜色和渲染）...")
+            else:
+                print(f"  → 准备继续执行后续步骤（应用颜色和渲染）...")
         except Exception as e:
             print(f"  ✗ 场景生成失败: {e}")
             import traceback
@@ -339,6 +436,9 @@ class LangChainInfinigenAgent:
                 "error": "场景生成失败",
                 "message": str(e)
             }
+        
+        # 保存 used_template 状态，用于返回值
+        scene_generation_used_template = used_template
         
         # 步骤3: 应用颜色到场景
         print(f"\n{'='*60}")
@@ -476,12 +576,225 @@ class LangChainInfinigenAgent:
         
         return {
             "success": True,
+            "mode": "template",
             "user_input": user_input,
             "scene_file": str(scene_file),
             "rendered_image": str(rendered_image),
             "color_scheme": color_scheme_json,
-            "colors_applied": len(colors) if colors else 0
+            "colors_applied": len(colors) if colors else 0,
+            "used_template": scene_generation_used_template
         }
+    
+    def _process_generate_mode(
+        self,
+        user_input: str,
+        output_folder: str,
+        seed: Optional[str] = None,
+        timeout: Optional[int] = None,
+        auto_confirm: bool = False
+    ) -> Dict[str, Any]:
+        """
+        快速生成模式：生成新场景，快速预览，用户确认后可选精修
+        
+        Args:
+            user_input: 用户输入
+            output_folder: 输出文件夹
+            seed: 随机种子
+            timeout: 超时时间
+            auto_confirm: 是否自动确认（True=自动精修渲染，False=只返回预览）
+            
+        Returns:
+            包含场景文件、预览图片等信息的字典
+        """
+        print("\n🏗️  模式: 快速生成模式")
+        print("=" * 60)
+        
+        # 步骤1: 检测房间类型
+        print("\n步骤1: 检测房间类型...")
+        room_type = detect_room_type(user_input)
+        if room_type:
+            print(f"  ✓ 检测到房间类型: {room_type}")
+        else:
+            print(f"  ⚠ 未检测到特定房间类型，将生成通用场景")
+        
+        # 步骤2: 快速生成场景（使用更激进的配置）
+        print("\n步骤2: 快速生成新场景...")
+        print("      ⚡ 使用快速配置（减少计算量）")
+        print("      预计时间: 3-8 分钟")
+        
+        try:
+            # 使用更激进的快速配置
+            gin_configs = ['ultra_fast_solve.gin', 'singleroom.gin']
+            gin_overrides = [
+                'compose_indoors.terrain_enabled=False',
+                'populate.density_multiplier=0.5',  # 减少一半的装饰物
+                'compose_indoors.solve_steps_large=5',  # 减少大物体布局尝试次数
+            ]
+            
+            if room_type:
+                gin_overrides.append(f'restrict_solving.restrict_parent_rooms=\\[\\"{room_type}\\"\\]')
+            
+            scene_file = self.scene_generator.generate_scene(
+                output_folder=output_folder,
+                seed=seed,
+                task="coarse",
+                gin_configs=gin_configs,
+                gin_overrides=gin_overrides,
+                timeout=timeout
+            )
+            
+            from pathlib import Path
+            scene_file = Path(scene_file)
+            
+            # 如果返回的是目录，查找场景文件
+            if scene_file.is_dir():
+                possible_scene = scene_file / "scene.blend"
+                if possible_scene.exists():
+                    scene_file = possible_scene
+                else:
+                    blend_files = list(scene_file.rglob("*.blend"))
+                    if blend_files:
+                        scene_file = blend_files[0]
+                    else:
+                        raise FileNotFoundError(f"在目录中未找到场景文件: {scene_file}")
+            
+            if not scene_file.exists():
+                raise FileNotFoundError(f"场景文件不存在: {scene_file}")
+            
+            file_size = scene_file.stat().st_size
+            if file_size < 1024:
+                raise ValueError(f"场景文件大小异常: {file_size} 字节")
+            
+            print(f"  ✓ 场景生成成功: {scene_file} (大小: {file_size / (1024*1024):.2f} MB)")
+            
+        except Exception as e:
+            print(f"  ✗ 场景生成失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                "success": False,
+                "error": "场景生成失败",
+                "message": str(e)
+            }
+        
+        # 步骤3: 快速预览渲染（Workbench/Eevee，<1秒）
+        print("\n步骤3: 快速预览渲染...")
+        try:
+            self.scene_renderer = SceneRenderer(str(scene_file))
+            preview_image = Path(scene_file).parent / "preview_image.png"
+            
+            # 使用 Eevee 快速预览（比 Workbench 质量好一些，但仍然很快）
+            rendered_preview = self.scene_renderer.render_preview(
+                output_path=str(preview_image),
+                resolution=(1920, 1080),
+                engine="BLENDER_EEVEE"
+            )
+            
+            print(f"  ✓ 快速预览生成成功: {rendered_preview}")
+            
+        except Exception as e:
+            print(f"  ✗ 快速预览渲染失败: {e}")
+            import traceback
+            traceback.print_exc()
+            # 预览失败不影响整体流程，继续返回场景文件
+            rendered_preview = None
+        
+        # 返回预览结果，等待用户确认
+        result = {
+            "success": True,
+            "mode": "generate",
+            "user_input": user_input,
+            "scene_file": str(scene_file),
+            "preview_image": str(rendered_preview) if rendered_preview else None,
+            "needs_confirmation": not auto_confirm,
+            "message": "场景布局已生成（见预览图），是否需要精修渲染？"
+        }
+        
+        if auto_confirm:
+            # 自动确认，直接进行精修渲染
+            print("\n步骤4: 自动确认，开始精修渲染...")
+            try:
+                final_image = Path(scene_file).parent / "rendered_image.png"
+                final_rendered = self.scene_renderer.render_image(
+                    output_path=str(final_image),
+                    resolution=(1920, 1080),
+                    save_all_passes=False
+                )
+                result["rendered_image"] = str(final_rendered)
+                result["needs_confirmation"] = False
+                print(f"  ✓ 精修渲染完成: {final_rendered}")
+            except Exception as e:
+                print(f"  ⚠ 精修渲染失败: {e}，但预览已生成")
+        else:
+            print("\n" + "=" * 60)
+            print("✓ 场景预览已生成！")
+            print("=" * 60)
+            print("预览图片:", result["preview_image"])
+            print("场景文件:", result["scene_file"])
+            print("\n提示: 如需精修渲染，请调用 confirm_and_render() 方法")
+        
+        return result
+    
+    def confirm_and_render(
+        self,
+        scene_file: str,
+        output_folder: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        确认并精修渲染场景（用于快速生成模式）
+        
+        Args:
+            scene_file: 场景文件路径
+            output_folder: 输出文件夹（可选）
+            
+        Returns:
+            包含精修渲染图片的字典
+        """
+        print("=" * 60)
+        print("开始精修渲染...")
+        print("=" * 60)
+        
+        scene_path = Path(scene_file)
+        if not scene_path.exists():
+            return {
+                "success": False,
+                "error": "场景文件不存在",
+                "message": f"文件不存在: {scene_file}"
+            }
+        
+        try:
+            self.scene_renderer = SceneRenderer(str(scene_file))
+            
+            if output_folder:
+                output_path = Path(output_folder) / "rendered_image.png"
+            else:
+                output_path = scene_path.parent / "rendered_image.png"
+            
+            # 使用 Cycles 进行精修渲染
+            rendered_image = self.scene_renderer.render_image(
+                output_path=str(output_path),
+                resolution=(1920, 1080),
+                save_all_passes=False
+            )
+            
+            print(f"\n✓ 精修渲染完成: {rendered_image}")
+            
+            return {
+                "success": True,
+                "scene_file": str(scene_file),
+                "rendered_image": str(rendered_image)
+            }
+            
+        except Exception as e:
+            print(f"\n✗ 精修渲染失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                "success": False,
+                "error": "精修渲染失败",
+                "message": str(e),
+                "scene_file": str(scene_file)
+            }
     
     def process_existing_scene(
         self,
@@ -596,7 +909,7 @@ class LangChainInfinigenAgent:
                 "error": "渲染失败",
                 "message": str(e),
                 "scene_file": str(scene_file)
-            }
+        }
     
     def interactive_mode(self):
         """交互式模式"""
